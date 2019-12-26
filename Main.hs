@@ -1,5 +1,6 @@
 {-# Language TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes, ExtendedDefaultRules #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module Main where
 
@@ -26,12 +27,15 @@ import qualified Data.Text.IO as Text
 import Safe
 import System.FilePath
 import Text.InterpolatedString.Perl6 (qq,qc)
+import Text.Printf
 
 
 newtype Name = Name Text
                deriving (Eq,Ord,Show,IsString,Data,Generic)
 
-type Roubles = Fixed E2
+newtype Roubles = Roubles (Fixed E2)
+                  deriving stock (Eq,Ord,Show,Data,Generic)
+                  deriving newtype (Num,Read)
 
 data CLI = Run FilePath
            deriving (Generic, Show)
@@ -76,7 +80,6 @@ getDate s = runIdentity $ do
   where u = Text.unpack
         normY x = x
 
-
 getDayFact :: [Text]  -> [DateFact]
 getDayFact s = maybeToList $ DateDay <$> getDate s
 
@@ -109,7 +112,7 @@ getSummaText s = case (Prelude.reverse s) of
 
 getFacts :: [Text] -> [Fact]
 getFacts ss =    mkFact Expense (listToMaybe d1) (listToMaybe n) ee
-                 <> mkFact Income (listToMaybe d1) (listToMaybe n) ii
+              <> mkFact Income (listToMaybe d1) (listToMaybe n) ii
   where
     d1    = getDayFact ss
     n     = getNameFact ss
@@ -185,7 +188,12 @@ main = do
   let facts'   = filter (byYear 2019) $ concatMap getFacts lns
   let facts''  = transformBi normNames $ transformBi toMonth  facts'
 
-  forM_ facts'' $ \(Xfer _ _ co _) -> do
-    let ns = headDef "-" [ x | Name x <- universeBi co]
-    Text.putStrLn [qc|Expense {ns}|]
+  let expenses = [e | e@(Xfer Expense _ _ _) <- universeBi facts'']
+
+  forM_ expenses $ \e -> do
+    let ns = headDef "-" [ x | Name x       <- universeBi e]
+    let m  = headDef 1   [ m | DateMonth m  <- universeBi e]
+    let ru = headDef 0   [ r | Roubles r    <- universeBi e]
+
+    printf "%02d %-32s %-8.2f\n"  m ns (realToFrac ru :: Double)
 
