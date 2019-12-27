@@ -38,7 +38,9 @@ newtype Roubles = Roubles (Fixed E2)
                   deriving newtype (Num,Read)
 
 data CLI = Run FilePath
-           deriving (Generic, Show)
+         | Dump FilePath
+         | MonthlyReport FilePath
+         deriving (Generic, Show)
 
 instance ParseRecord CLI
 
@@ -64,7 +66,6 @@ data XferType = Income | Expense
 data Fact = Xfer XferType DateFact ContragFact Roubles
             deriving (Eq,Ord,Show,Data,Generic)
 
--- TODO: распарсить
 -- TODO: нормализовать названия
 -- TODO: вывести разблюдовку по месяцам
 
@@ -180,15 +181,18 @@ shortNameIP xs = case xs of
     s "" = ""
     s x  = [qc|{Text.head x}.|]
 
-main :: IO ()
-main = do
-  (Run fn)  <- getRecord "brunfuck"
+
+type MonthSumReport = Map DateFact (Map Name Roubles)
+
+runCmd :: CLI -> IO ()
+
+runCmd (Dump fn) = do
   lns <- map tokenizeTabs . Text.lines <$> Text.readFile fn
 
   let facts'   = filter (byYear 2019) $ concatMap getFacts lns
   let facts''  = transformBi normNames $ transformBi toMonth  facts'
 
-  let expenses = [e | e@(Xfer Expense _ _ _) <- universeBi facts'']
+  let expenses = [e | e@(Xfer _ _ _ _) <- universeBi facts'']
 
   forM_ expenses $ \e -> do
     let ns = headDef "-" [ x | Name x       <- universeBi e]
@@ -196,4 +200,34 @@ main = do
     let ru = headDef 0   [ r | Roubles r    <- universeBi e]
 
     printf "%02d %-32s %-8.2f\n"  m ns (realToFrac ru :: Double)
+
+runCmd (Run fn) = do
+  Text.putStrLn "deprecated"
+
+
+runCmd (MonthlyReport fn) = do
+  lns <- map tokenizeTabs . Text.lines <$> Text.readFile fn
+
+  let facts'   = filter (byYear 2019) $ concatMap getFacts lns
+  let facts''  = transformBi normNames $ transformBi toMonth  facts'
+
+  let expenses = [e | e@(Xfer Expense m c r) <- universeBi facts'']
+
+  let m = Map.fromListWith mkVal [ (m, Map.singleton (mkNameOf e) r) | e@(Xfer _ m c r) <- universeBi expenses ]
+
+  forM_ expenses $ \e -> do
+    let ns = headDef "-" [ x | Name x       <- universeBi e]
+    let m  = headDef 1   [ m | DateMonth m  <- universeBi e]
+    let ru = headDef 0   [ r | Roubles r    <- universeBi e]
+
+    printf "%02d %-32s %-8.2f\n"  m ns (realToFrac ru :: Double)
+
+  where
+    mkVal m1 m2 = undefined
+    mkNameOf (Xfer _ _ _ _) = undefined
+
+
+main :: IO ()
+main = do
+  getRecord "brunfuck" >>= runCmd
 
