@@ -228,7 +228,6 @@ runCmd (MonthlyReport fn) = do
 
   let hdr = Vector.fromList $ Label "Name" : [Label (Text.pack $ show n) | n <- mons ]
 
-  -- TODO: for each name make row
   rows <- forM (Map.toList m) $ \(Contrag f (Name n),m2) -> do
             let cols = map (maybe (Label "") Value . flip Map.lookup m2) [DateMonth i | i <- mons]
             pure $ Vector.fromList $ (Label n : cols)
@@ -239,13 +238,11 @@ runCmd (MonthlyReport fn) = do
                (x:xs) -> render (alignLeft <> maxWidth 24) x : fmap (render (alignRight <> maxWidth 10 <> lsep "\t")) xs
                _      -> mempty
 
-  -- TODO: define display rules
   mapM_ (drawNewline . Vector.imapM_ drawEntryM) (M.toRows (M.fromColumns cols))
 
   where
     mkVal :: Map DateFact [Roubles] -> Map DateFact [Roubles] -> Map DateFact [Roubles]
     mkVal = Map.unionWith (<>)
-
 
 
 
