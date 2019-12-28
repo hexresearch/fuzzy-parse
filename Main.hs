@@ -234,7 +234,7 @@ runCmd (MonthlyReport fn) = do
   let ma = M.fromRows (hdr:rows)
 
   let cols = case M.toColumns ma of
-               (x:xs) -> render (alignLeft) x : fmap (render (alignRight <> lp 4)) xs
+               (x:xs) -> render (alignLeft) x : fmap (render (alignRight <> lsep "\t")) xs
                _      -> mempty
 
   -- TODO: define display rules
@@ -253,6 +253,8 @@ data RenderSpec  = RenderSpec { rsAlign    :: Maybe RenderAlign
                               , rsMaxWidth :: Maybe Int
                               , rsLPad     :: Maybe Int
                               , rsRPad     :: Maybe Int
+                              , rsLSep     :: Maybe Text
+                              , rsRSep     :: Maybe Text
                               }
                    deriving (Eq,Ord,Show)
 
@@ -262,6 +264,8 @@ instance Semigroup RenderSpec where
                         , rsMaxWidth = rsMaxWidth b <|> rsMaxWidth a
                         , rsLPad     = rsLPad b <|> rsRPad a
                         , rsRPad     = rsRPad b <|> rsRPad a
+                        , rsLSep     = rsLSep b <|> rsLSep a
+                        , rsRSep     = rsRSep b <|> rsRSep a
                         }
 
 instance Monoid RenderSpec where
@@ -269,7 +273,15 @@ instance Monoid RenderSpec where
                       , rsMaxWidth = Nothing
                       , rsLPad     = Nothing
                       , rsRPad     = Nothing
+                      , rsLSep     = Nothing
+                      , rsRSep     = Nothing
                       }
+
+lsep :: Text -> RenderSpec
+lsep sep = mempty { rsLSep = pure sep }
+
+rsep :: Text -> RenderSpec
+rsep sep = mempty { rsRSep = pure sep }
 
 rp :: Int -> RenderSpec
 rp r = mempty { rsRPad = pure r }
@@ -294,8 +306,10 @@ render spec vs = Vector.fromList [ Label (doAlign spec (l,s)) | (l,s) <- cells ]
     cells  = [ (Text.length (fmt x), fmt x) | x <- Vector.toList vs ]
     maxlen = maximum (fmap fst cells)
 
-    doAlign _ (l,s) = Text.replicate nl " " <> s <> Text.replicate nr " "
+    doAlign _ (l,s) = lsep <> Text.replicate nl " " <> s <> Text.replicate nr " " <> rsep
       where
+        lsep = fromMaybe "" (rsLSep spec)
+        rsep = fromMaybe "" (rsRSep spec)
         lp = fromMaybe 0 (rsLPad spec)
         rp = fromMaybe 0 (rsRPad spec)
         n  = max (maxlen - l) 0
