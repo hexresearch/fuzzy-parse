@@ -18,7 +18,7 @@ extra-source-files:  CHANGELOG.md
 
 executable brunfuck
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:       Render
   -- other-extensions:
   build-depends:      base >=4.12 && <4.13
                     , aeson
@@ -53,6 +53,7 @@ executable brunfuck
   extensions:  BangPatterns
              , DeriveDataTypeable
              , DeriveGeneric
+             , DerivingStrategies
              , FlexibleInstances
              , FunctionalDependencies
              , GeneralizedNewtypeDeriving
