@@ -29,13 +29,19 @@ import System.FilePath
 import Text.InterpolatedString.Perl6 (qq,qc)
 import Text.Printf
 
+import qualified Data.Matrix as M
+import qualified Data.Vector as Vector
+import Data.Vector (Vector)
 
 newtype Name = Name Text
                deriving (Eq,Ord,Show,IsString,Data,Generic)
 
 newtype Roubles = Roubles (Fixed E2)
-                  deriving stock (Eq,Ord,Show,Data,Generic)
-                  deriving newtype (Num,Read)
+                  deriving stock (Eq,Ord,Data,Generic)
+                  deriving newtype (Num,Real,Read)
+
+instance Show Roubles where
+  show (Roubles x) = show x
 
 data CLI = Run FilePath
          | Dump FilePath
@@ -182,7 +188,7 @@ shortNameIP xs = case xs of
     s x  = [qc|{Text.head x}.|]
 
 
-type MonthSumReport = Map DateFact (Map Name Roubles)
+type MonthSumReport = Map ContragFact (Map Name Roubles)
 
 runCmd :: CLI -> IO ()
 
@@ -211,20 +217,107 @@ runCmd (MonthlyReport fn) = do
   let facts'   = filter (byYear 2019) $ concatMap getFacts lns
   let facts''  = transformBi normNames $ transformBi toMonth  facts'
 
-  let expenses = [e | e@(Xfer Expense m c r) <- universeBi facts'']
+  let exp = [e | e@(Xfer Expense m c r) <- universeBi facts'']
 
-  let m = Map.fromListWith mkVal [ (m, Map.singleton (mkNameOf e) r) | e@(Xfer _ m c r) <- universeBi expenses ]
+  let m' = Map.fromListWith mkVal [ (c, Map.singleton m [r]) | e@(Xfer _ m c r) <- universeBi exp ]
+  let m  = fmap (fmap sum) m'
 
-  forM_ expenses $ \e -> do
-    let ns = headDef "-" [ x | Name x       <- universeBi e]
-    let m  = headDef 1   [ m | DateMonth m  <- universeBi e]
-    let ru = headDef 0   [ r | Roubles r    <- universeBi e]
+  let mons = [1..12]
 
-    printf "%02d %-32s %-8.2f\n"  m ns (realToFrac ru :: Double)
+  let hdr = Vector.fromList $ Label "Name" : [Label (Text.pack $ show n) | n <- mons ]
+
+  -- TODO: for each name make row
+  rows <- forM (Map.toList m) $ \(Contrag f (Name n),m2) -> do
+            let cols = map (maybe (Label "") Value . flip Map.lookup m2) [DateMonth i | i <- mons]
+            pure $ Vector.fromList $ (Label n : cols)
+
+  let ma = M.fromRows (hdr:rows)
+
+  let cols = case M.toColumns ma of
+               (x:xs) -> render (alignLeft) x : fmap (render (alignRight <> lp 4)) xs
+               _      -> mempty
+
+  -- TODO: define display rules
+  mapM_ (drawNewline . Vector.imapM_ drawEntryM) (M.toRows (M.fromColumns cols))
 
   where
-    mkVal m1 m2 = undefined
-    mkNameOf (Xfer _ _ _ _) = undefined
+    mkVal :: Map DateFact [Roubles] -> Map DateFact [Roubles] -> Map DateFact [Roubles]
+    mkVal = Map.unionWith (<>)
+
+
+
+data RenderAlign = RenderAlignRight | RenderAlignLeft
+                   deriving (Eq,Ord,Show)
+
+data RenderSpec  = RenderSpec { rsAlign    :: Maybe RenderAlign
+                              , rsMaxWidth :: Maybe Int
+                              , rsLPad     :: Maybe Int
+                              , rsRPad     :: Maybe Int
+                              }
+                   deriving (Eq,Ord,Show)
+
+
+instance Semigroup RenderSpec where
+  (<>) a b = RenderSpec { rsAlign    = rsAlign b    <|> rsAlign a
+                        , rsMaxWidth = rsMaxWidth b <|> rsMaxWidth a
+                        , rsLPad     = rsLPad b <|> rsRPad a
+                        , rsRPad     = rsRPad b <|> rsRPad a
+                        }
+
+instance Monoid RenderSpec where
+  mempty = RenderSpec { rsAlign    = Nothing
+                      , rsMaxWidth = Nothing
+                      , rsLPad     = Nothing
+                      , rsRPad     = Nothing
+                      }
+
+rp :: Int -> RenderSpec
+rp r = mempty { rsRPad = pure r }
+
+lp :: Int -> RenderSpec
+lp l = mempty { rsLPad = pure l }
+
+alignNone  = mempty { rsAlign = Nothing }
+alignLeft  = mempty { rsAlign = Just RenderAlignLeft  }
+alignRight = mempty { rsAlign = Just RenderAlignRight }
+
+maxWidth :: Int -> RenderSpec
+maxWidth n = mempty { rsMaxWidth = pure n }
+
+render :: Show a => RenderSpec -> Vector (Entry a) -> Vector (Entry a)
+render spec vs = Vector.fromList [ Label (doAlign spec (l,s)) | (l,s) <- cells ]
+  where
+
+    fmt (Value a) = Text.pack $ show a
+    fmt (Label t) = t
+
+    cells  = [ (Text.length (fmt x), fmt x) | x <- Vector.toList vs ]
+    maxlen = maximum (fmap fst cells)
+
+    doAlign _ (l,s) = Text.replicate nl " " <> s <> Text.replicate nr " "
+      where
+        lp = fromMaybe 0 (rsLPad spec)
+        rp = fromMaybe 0 (rsRPad spec)
+        n  = max (maxlen - l) 0
+        (nr,nl) = case (rsAlign spec) of
+                    Just RenderAlignLeft  -> (rp+n,lp)
+                    Just RenderAlignRight -> (rp,n+lp)
+                    Nothing               -> (rp,n+lp)
+
+
+drawNewline m1 = m1 >> Text.putStrLn ""
+
+drawEntryM :: Show a => Int -> Entry a -> IO ()
+drawEntryM i cell = do
+
+  let txt = case cell of
+              Label txt -> txt
+              Value a   -> error (show a)
+
+  Text.putStr txt
+
+data Entry a = Label Text | Value a
+               deriving stock (Eq,Ord,Show,Data,Generic)
 
 
 main :: IO ()
