@@ -9,6 +9,9 @@ import Data.Data
 import GHC.Generics
 import Control.Applicative ((<|>))
 
+-- TODO: fixed width columns
+-- TODO: column trim
+
 data Entry a = Label Text | Value a
                deriving stock (Eq,Ord,Show,Data,Generic)
 
@@ -70,10 +73,19 @@ render spec vs = Vector.fromList [ Label (doAlign spec (l,s)) | (l,s) <- cells ]
     fmt (Label t) = t
 
     cells  = [ (Text.length (fmt x), fmt x) | x <- Vector.toList vs ]
-    maxlen = maximum (fmap fst cells)
+    maxlen = case (rsMaxWidth spec) of
+             Just n  -> min n lmax
+             Nothing -> lmax
 
-    doAlign _ (l,s) = lsep <> Text.replicate nl " " <> s <> Text.replicate nr " " <> rsep
+      where lmax = maximum (fmap fst cells)
+
+    doAlign _ (l,s) = lsep <> trunc (Text.replicate nl " " <> s <> Text.replicate nr " ") <> rsep
       where
+
+        trunc s = case (rsMaxWidth spec) of
+                    Nothing -> s
+                    Just n  -> Text.take n s
+
         lsep = fromMaybe "" (rsLSep spec)
         rsep = fromMaybe "" (rsRSep spec)
         lp = fromMaybe 0 (rsLPad spec)

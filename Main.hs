@@ -236,7 +236,7 @@ runCmd (MonthlyReport fn) = do
   let ma = M.fromRows (hdr:rows)
 
   let cols = case M.toColumns ma of
-               (x:xs) -> render (alignLeft) x : fmap (render (alignRight <> lsep "\t")) xs
+               (x:xs) -> render (alignLeft <> maxWidth 24) x : fmap (render (alignRight <> maxWidth 10 <> lsep "\t")) xs
                _      -> mempty
 
   -- TODO: define display rules
