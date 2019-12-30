@@ -1,14 +1,14 @@
-module FancyStringTokenizer ( TokenizeSpec(..)
-                            , IsToken(..)
-                            , tokenize
-                            , esc
-                            , addEmptyFields
-                            , nn
-                            , sq
-                            , sqq
-                            , delims
-                            , eatSpace
-                            ) where
+module Data.Text.Fuzzy.Tokenize ( TokenizeSpec(..)
+                                , IsToken(..)
+                                , tokenize
+                                , esc
+                                , addEmptyFields
+                                , nn
+                                , sq
+                                , sqq
+                                , delims
+                                , eatSpace
+                                ) where
 
 import Data.Char
 import Data.Set (Set)
