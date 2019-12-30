@@ -21,10 +21,10 @@ library
                      , Data.Text.Fuzzy.Dates
 
   other-modules:       Data.Text.Fuzzy.Attoparsec.Day
-  -- other-extensions:
   build-depends:       base ^>=4.12.0.0
                      , attoparsec
                      , containers
+                     , generic-trie
                      , mtl
                      , text
                      , time
@@ -52,5 +52,14 @@ test-suite fuzzy-parse-test
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             MyLibTest.hs
+  main-is:             FuzzyParseTests.hs
   build-depends:       base ^>=4.12.0.0
+                     , fuzzy-parse
+                     , interpolatedstring-perl6
+
+  extensions:   OverloadedStrings
+              , TemplateHaskell
+              , QuasiQuotes
+              , ExtendedDefaultRules
+
+

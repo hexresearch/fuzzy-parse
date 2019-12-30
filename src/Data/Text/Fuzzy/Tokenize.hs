@@ -33,6 +33,8 @@ data TokenizeSpec = TokenizeSpec { tsAtoms          :: Set Text
                                  , tsNotNormalize   :: Maybe Bool
                                  , tsEsc            :: Maybe Bool
                                  , tsAddEmptyFields :: Maybe Bool
+                                 , tsPunct          :: Set Char
+                                 , tsKeywords       :: Set Text
                                  }
                     deriving (Eq,Ord,Show)
 
@@ -46,7 +48,9 @@ instance Semigroup TokenizeSpec where
                           , tsEatSpace    = tsEatSpace b <|> tsEatSpace a
                           , tsNotNormalize = tsNotNormalize b <|> tsNotNormalize a
                           , tsEsc         = tsEsc b <|> tsEsc a
-                          , tsAddEmptyFields = tsAddEmptyFields b <|> tsAddEmptyFields b
+                          , tsAddEmptyFields = tsAddEmptyFields b <|> tsAddEmptyFields a
+                          , tsPunct = tsPunct b <> tsPunct a
+                          , tsKeywords = tsKeywords b <> tsKeywords a
                           }
 
 instance Monoid TokenizeSpec where
@@ -59,6 +63,8 @@ instance Monoid TokenizeSpec where
                         , tsNotNormalize = Nothing
                         , tsEsc = Nothing
                         , tsAddEmptyFields = Nothing
+                        , tsPunct = mempty
+                        , tsKeywords = mempty
                         }
 
 
@@ -93,6 +99,12 @@ comment s = mempty { tsLineComment = cmt }
             Just (p,su) -> Map.singleton p su
             Nothing     -> mempty
 
+punct :: Text -> TokenizeSpec
+punct s = mempty { tsPunct = Set.fromList (Text.unpack s) }
+
+keywords :: [Text] -> TokenizeSpec
+keywords s = mempty { tsKeywords = Set.fromList s }
+
 newtype TokenizeM w a = TokenizeM { untokenize :: RWS TokenizeSpec w () a }
                         deriving( Applicative
                                 , Functor
@@ -104,8 +116,10 @@ newtype TokenizeM w a = TokenizeM { untokenize :: RWS TokenizeSpec w () a }
 
 data Token = TChar Char
            | TSChar Char
+           | TPunct Char
            | TText Text
            | TSLit Text
+           | TKeyword Text
            | TEmpty
            | TDelim
            deriving (Eq,Ord,Show)
@@ -113,25 +127,30 @@ data Token = TChar Char
 class IsToken a where
   mkChar   :: Char -> a
   mkSChar  :: Char -> a
+  mkPunct  :: Char -> a
   mkText   :: Text -> a
   mkStrLit :: Text -> a
+  mkKeyword :: Text -> a
   mkEmpty  :: a
   mkDelim  :: a
-
 
 instance IsToken (Maybe Text) where
   mkChar = pure . Text.singleton
   mkSChar = pure . Text.singleton
+  mkPunct = pure . Text.singleton
   mkText = pure
   mkStrLit = pure
+  mkKeyword = pure
   mkEmpty = Nothing
   mkDelim = Nothing
 
 instance IsToken Text where
   mkChar   = Text.singleton
   mkSChar  = Text.singleton
+  mkPunct  = Text.singleton
   mkText   = id
   mkStrLit = id
+  mkKeyword = id
   mkEmpty  = ""
   mkDelim  = ""
 
@@ -143,7 +162,9 @@ tokenize s t = map tr t1
     tr (TSChar c) = mkSChar c
     tr (TText c) = mkText c
     tr (TSLit c) = mkStrLit c
+    tr (TKeyword c) = mkKeyword c
     tr (TEmpty)  = mkEmpty
+    tr (TPunct c) = mkPunct c
     tr (TDelim)  = mkDelim
 
 execTokenizeM :: TokenizeM [Token] a -> TokenizeSpec -> [Token]
@@ -168,6 +189,8 @@ tokenize' spec txt = execTokenizeM (root txt) spec
         Just ('"', rest)  | justTrue (tsStringQQ r)   -> scanQ '"' rest
 
         Just (c, rest)    | Map.member c (tsLineComment r) -> scanComment (c,rest)
+
+        Just (c, rest)    | Set.member c (tsPunct r)  -> tell [TPunct c] >> root rest
 
         Just (c, rest)    | otherwise                 -> tell [TChar c] >> root rest
 
@@ -219,7 +242,9 @@ normalize spec x = snd $ execRWS (go x) () init
     go (TChar x : xs) = do
       let (n,ns) = List.span isTChar xs
       succStat
-      tell [ TText $ Text.pack (x : [ c | TChar c <- n]) ]
+      let chunk = Text.pack (x : [ c | TChar c <- n])
+      let kw = Set.member chunk (tsKeywords spec)
+      tell [ if kw then TKeyword chunk else TText chunk ]
       go ns
 
     go (TSChar x : xs) = do
@@ -231,6 +256,11 @@ normalize spec x = snd $ execRWS (go x) () init
     go (TDelim : xs) = do
       addEmptyField
       pruneStat
+      go xs
+
+    go (TPunct c : xs) = do
+      tell [ TPunct c ]
+      succStat
       go xs
 
     go [] = addEmptyField
