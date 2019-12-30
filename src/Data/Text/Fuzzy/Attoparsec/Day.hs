@@ -1,4 +1,4 @@
-module Data.Parse.Fuzzy.Attoparsec.Day ( dayDMY
+module Data.Text.Fuzzy.Attoparsec.Day (  dayDMY
                                        , dayYMD
                                        , dayYYYYMMDD
                                        , dayDMonY
@@ -14,6 +14,7 @@ import Data.Text (Text)
 import Data.Time.Calendar (Day,fromGregorian,gregorianMonthLength)
 import qualified Data.Char as Char
 import qualified Data.Text as Text
+
 
 
 

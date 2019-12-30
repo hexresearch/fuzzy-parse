@@ -18,12 +18,16 @@ extra-source-files:  CHANGELOG.md
 
 library
   exposed-modules:     Data.Text.Fuzzy.Tokenize 
-  -- other-modules:
+                     , Data.Text.Fuzzy.Dates
+
+  other-modules:       Data.Text.Fuzzy.Attoparsec.Day
   -- other-extensions:
   build-depends:       base ^>=4.12.0.0
+                     , attoparsec
                      , containers
                      , mtl
                      , text
+                     , time
 
 
   hs-source-dirs:      src
