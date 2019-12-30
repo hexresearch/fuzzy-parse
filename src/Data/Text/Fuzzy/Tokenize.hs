@@ -9,6 +9,8 @@ module Data.Text.Fuzzy.Tokenize ( TokenizeSpec(..)
                                 , delims
                                 , comment
                                 , eatSpace
+                                , punct
+                                , keywords
                                 ) where
 
 import Data.Char
