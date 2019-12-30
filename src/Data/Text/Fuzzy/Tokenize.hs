@@ -126,6 +126,14 @@ instance IsToken (Maybe Text) where
   mkEmpty = Nothing
   mkDelim = Nothing
 
+instance IsToken Text where
+  mkChar   = Text.singleton
+  mkSChar  = Text.singleton
+  mkText   = id
+  mkStrLit = id
+  mkEmpty  = ""
+  mkDelim  = ""
+
 tokenize :: IsToken a => TokenizeSpec -> Text -> [a]
 tokenize s t = map tr t1
   where
