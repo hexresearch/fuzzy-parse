@@ -11,5 +11,5 @@ import Data.Text.Fuzzy.Tokenize
 
 main :: IO ()
 main = do
-  putStrLn "JPA KIA"
+  putStrLn "TOKENIZE CSV-LIKE"
   exitSuccess

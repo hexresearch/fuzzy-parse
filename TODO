@@ -1,9 +1,8 @@
 
+- [ ] TODO: Tests
 - [ ] TODO: Freeze dependencies versions
 - [ ] TODO: Version number
-- [ ] TODO: Tests
 - [ ] TODO: Haddocks
-- [ ] TODO: Examples
 - [ ] TODO: Tokenizer: Identation support
 - [ ] TODO: Tokenizer: Block comments support
 
