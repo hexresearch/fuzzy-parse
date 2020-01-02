@@ -6,6 +6,17 @@ cabal-version:       2.4
 name:                fuzzy-parse
 version:             0.1.0.0
 synopsis:            Tools for processing unstructured text data
+
+description:
+  The lightweight and easy to use functions for text tokenizing and parsing.  It aimed for
+  parsing mostly unstructured data, but the structured formats may be parsed as well.
+
+  It may be used in different sutiations, for DSL, tex markups or even for parsing simple
+  grammars easier and sometimes faster than in case of usage mainstream parsing combinators
+  or parser generators.
+
+  See the README.md, examples and modules documentation for more.
+
 -- description:
 -- bug-reports:
 license:             MIT
