@@ -201,7 +201,7 @@ tokenize' spec txt = execTokenizeM (root txt) spec
       suff <- Map.lookup c <$> asks tsLineComment
       case suff of
         Just t | Text.isPrefixOf t rest -> do
-           root $ Text.dropWhile (\c -> c /= '\n') rest
+           root $ Text.drop 1 $ Text.dropWhile (\c -> c /= '\n') rest
 
         _  -> tell [TChar c] >> root rest
 
