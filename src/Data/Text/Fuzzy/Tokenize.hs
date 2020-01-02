@@ -34,6 +34,7 @@
 -- [Just "a b c",Just "bebeb:colon inside",Just "qqq",Nothing,Nothing,Nothing,Nothing]
 --
 -- == Notes
+--
 -- === About the delimeter tokens
 -- This type of tokens appears during a "delimited"
 -- formats processing and disappears in results. Currenly
@@ -49,6 +50,11 @@
 -- >>> let spec = delims " \t"<>punct ",;()" <>emptyFields<>sq
 -- >>> tokenize spec "( delimeters , are , important, 'spaces are not');" :: [Text]
 -- ["(","delimeters",",","are",",","important",",","spaces are not",")",";"]
+--
+-- == Other
+-- For CSV-like formats it makes sense to split text to lines first,
+-- otherwise newline characters may cause to weird results
+--
 --
 
 module Data.Text.Fuzzy.Tokenize ( TokenizeSpec
