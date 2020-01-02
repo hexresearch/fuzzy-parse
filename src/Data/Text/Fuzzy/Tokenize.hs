@@ -8,7 +8,6 @@ module Data.Text.Fuzzy.Tokenize ( TokenizeSpec(..)
                                 , sqq
                                 , delims
                                 , comment
-                                , eatSpace
                                 , punct
                                 , keywords
                                 ) where
