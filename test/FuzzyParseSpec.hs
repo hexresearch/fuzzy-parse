@@ -6,10 +6,27 @@ module FuzzyParseSpec (spec) where
 
 import Data.Text (Text)
 import Test.Hspec
-import Text.InterpolatedString.Perl6 (qc)
+import Text.InterpolatedString.Perl6 (q)
 
 import Data.Text.Fuzzy.Tokenize
 
+data TTok = TChar Char
+          | TSChar Char
+          | TPunct Char
+          | TText Text
+          | TStrLit Text
+          | TKeyword Text
+          | TEmpty
+          deriving(Eq,Ord,Show)
+
+instance IsToken TTok where
+  mkChar = TChar
+  mkSChar = TSChar
+  mkPunct = TPunct
+  mkText = TText
+  mkStrLit = TStrLit
+  mkKeyword = TKeyword
+  mkEmpty = TEmpty
 
 spec :: Spec
 spec = do
@@ -41,4 +58,30 @@ spec = do
       let toks = tokenize spec "( delimeters , are , important, 'spaces are not');" :: [Text]
       toks `shouldBe` ["(","delimeters",",","are",",","important",",","spaces are not",")",";"]
 
+
+    it "tokenize simple lisp-like text with keywords" $ do
+      let spec = delims " \n\t" <> comment ";"
+                                <> punct "{}()[]<>"
+                                <> sq <> sqq
+                                <> uw
+                                <> keywords ["define","apply","+"]
+
+      let code = [q|
+        (define add (a b ) ; define simple function
+          (+ a b) )
+        (define r (add 10 20))
+|]
+
+      let toks = tokenize spec code :: [TTok]
+
+      let expected = [ TPunct '('
+                     , TKeyword "define"
+                     , TText "add" , TPunct '(', TText "a" , TText "b", TPunct ')'
+                       , TPunct '(', TKeyword "+", TText "a",TText "b",TPunct ')',TPunct ')'
+                     ,TPunct '(',TKeyword "define"
+                                  ,TText "r"
+                                  ,TPunct '(',TText "add",TText "10",TText "20"
+                                  ,TPunct ')',TPunct ')']
+
+      toks `shouldBe` expected
 
