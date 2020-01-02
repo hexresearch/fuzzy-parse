@@ -7,35 +7,34 @@ module Data.Text.Fuzzy.Attoparsec.Day (  dayDMY
 
 import Data.List (zipWith)
 import Control.Applicative ((<|>))
-import Data.Maybe
-import Control.Monad (when)
 import Data.Attoparsec.Text (Parser,decimal,digit,count,satisfy,inClass,skipWhile)
-import Data.Text (Text)
 import Data.Time.Calendar (Day,fromGregorian,gregorianMonthLength)
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 
 
 
-
 day :: Parser Day
 day = dayDMonY <|> dayYYYYMMDD <|> dayYMD <|> dayDMY
+
+skipDelim :: Parser ()
+skipDelim = skipWhile (inClass " ./-")
 
 dayDMY :: Parser Day
 dayDMY = do
   d <- decimal :: Parser Int
-  skipWhile (inClass " ./-")
+  skipDelim
   m <- decimal :: Parser Int
-  skipWhile (inClass " ./-")
+  skipDelim
   y' <- decimal :: Parser Integer
   maybe (fail "bad date format") pure (makeDay y' m d)
 
 dayYMD :: Parser Day
 dayYMD = do
   y' <- decimal :: Parser Integer
-  skipWhile (inClass " ./-")
+  skipDelim
   m <- decimal :: Parser Int
-  skipWhile (inClass " ./-")
+  skipDelim
   d <- decimal :: Parser Int
   maybe (fail "bad date format") pure (makeDay y' m d)
 
@@ -53,15 +52,15 @@ dayYYYYMMDD = do
 dayDMonY :: Parser Day
 dayDMonY = do
   d <- decimal :: Parser Int
-  skipWhile (inClass " ./-")
+  skipDelim
   m <- pMon
-  skipWhile (inClass " ./-")
+  skipDelim
   y <- decimal :: Parser Integer
   maybe (fail "bad date format") pure (makeDay y m d)
   where
     pMon :: Parser Int
     pMon = do
-      txt <- Text.toUpper . Text.pack  <$> count 3 (satisfy (Char.isLetter))
+      txt <- Text.toUpper . Text.pack  <$> count 3 (satisfy Char.isLetter)
       case txt of
         "JAN" -> pure 1
         "FEB" -> pure 2
@@ -92,7 +91,7 @@ makeYear y' = if y < 1900 && y' < 99
 makeDay :: Integer -> Int -> Int -> Maybe Day
 makeDay y m d | m <= 12 && m > 0 =
   makeYear y >>= \yyyy -> if d <= gregorianMonthLength yyyy m
-                            then (pure $ fromGregorian yyyy m d)
+                            then pure $ fromGregorian yyyy m d
                             else Nothing
 
               | otherwise = Nothing

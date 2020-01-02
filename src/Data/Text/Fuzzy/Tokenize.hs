@@ -70,7 +70,8 @@ module Data.Text.Fuzzy.Tokenize ( TokenizeSpec
                                 , keywords
                                 ) where
 
-import Data.Char as Char
+import Prelude hiding (init)
+
 import Data.Set (Set)
 import Data.Map (Map)
 import Data.Text (Text)
@@ -78,7 +79,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.List as List
-import Data.Monoid
+import Data.Monoid()
 import Control.Applicative
 
 import Control.Monad.RWS
@@ -263,7 +264,7 @@ punct s = mempty { tsPunct = Set.fromList (Text.unpack s) }
 keywords :: [Text] -> TokenizeSpec
 keywords s = mempty { tsKeywords = Set.fromList s }
 
-newtype TokenizeM w a = TokenizeM { untokenize :: RWS TokenizeSpec w () a }
+newtype TokenizeM w a = TokenizeM (RWS TokenizeSpec w () a)
                         deriving( Applicative
                                 , Functor
                                 , MonadReader TokenizeSpec
@@ -335,13 +336,13 @@ tokenize s t = map tr t1
     tr (TText c) = mkText c
     tr (TSLit c) = mkStrLit c
     tr (TKeyword c) = mkKeyword c
-    tr (TEmpty)  = mkEmpty
+    tr TEmpty  = mkEmpty
     tr (TPunct c) = mkPunct c
-    tr (TDelim)  = mkDelim
+    tr TDelim  = mkDelim
 
 execTokenizeM :: TokenizeM [Token] a -> TokenizeSpec -> [Token]
 execTokenizeM (TokenizeM m) spec =
-  let (_,w) = execRWS m spec () in (norm w)
+  let (_,w) = execRWS m spec () in norm w
 
   where norm x | justTrue (tsNotNormalize spec) = x
                | otherwise = normalize spec x
@@ -353,7 +354,7 @@ tokenize' spec txt = execTokenizeM (root txt) spec
     root ts = do
       r <- ask
 
-      case (Text.uncons ts) of
+      case Text.uncons ts of
         Nothing           -> pure ()
 
         Just (c, rest)    | Set.member c (tsDelims r) -> tell [TDelim]  >> root rest
@@ -371,14 +372,14 @@ tokenize' spec txt = execTokenizeM (root txt) spec
       suff <- Map.lookup c <$> asks tsLineComment
       case suff of
         Just t | Text.isPrefixOf t rest -> do
-           root $ Text.drop 1 $ Text.dropWhile (\c -> c /= '\n') rest
+           root $ Text.drop 1 $ Text.dropWhile ('\n' /=) rest
 
         _  -> tell [TChar c] >> root rest
 
     scanQ q ts = do
       r <- ask
 
-      case (Text.uncons ts) of
+      case Text.uncons ts of
         Nothing           -> root ts
 
         Just ('\\', rest) | justTrue (tsEsc r) -> unesc (scanQ q) rest
@@ -387,8 +388,8 @@ tokenize' spec txt = execTokenizeM (root txt) spec
         Just (c, rest) | c ==  q   -> root rest
                        | otherwise -> tell [tsChar c] >> scanQ q rest
 
-    unesc f ts = do
-      case (Text.uncons ts) of
+    unesc f ts =
+      case Text.uncons ts of
         Nothing -> f ts
         Just ('"', rs)  -> tell [tsChar '"' ]  >> f rs
         Just ('\'', rs) -> tell [tsChar '\''] >> f rs
@@ -405,15 +406,18 @@ tokenize' spec txt = execTokenizeM (root txt) spec
     tsChar c | justTrue (tsNoSlits spec) = TChar c
              | otherwise = TSChar c
 
-data NormStats = NormStats { nstatBeforeDelim :: Int }
+newtype NormStats = NormStats { nstatBeforeDelim :: Int }
 
 normalize :: TokenizeSpec -> [Token] -> [Token]
-normalize spec x = snd $ execRWS (go x) () init
+normalize spec tokens = snd $ execRWS (go tokens) () init
   where
-    go (TChar x : xs) = do
-      let (n,ns) = List.span isTChar xs
+
+    go [] = addEmptyField
+
+    go (TChar c0 : cs) = do
+      let (n,ns) = List.span isTChar cs
       succStat
-      let chunk = eatSpaces $ Text.pack (x : [ c | TChar c <- n])
+      let chunk = eatSpaces $ Text.pack (c0 : [ c | TChar c <- n])
       let kw = Set.member chunk (tsKeywords spec)
       tell [ if kw then TKeyword chunk else TText chunk ]
       go ns
@@ -434,7 +438,7 @@ normalize spec x = snd $ execRWS (go x) () init
       succStat
       go xs
 
-    go [] = addEmptyField
+    go (x:xs) = tell [x] >> go xs
 
     succStat = do
       modify (\x -> x { nstatBeforeDelim = succ (nstatBeforeDelim x)})

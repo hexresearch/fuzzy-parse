@@ -2,15 +2,14 @@ module Data.Parse.Fuzzy.Attoparsec.Month ( fuzzyMonth, fuzzyMonthFromText
                                          ) where
 
 import Control.Applicative ((<|>))
-import Data.Maybe
 import Data.Attoparsec.Text (Parser,decimal,digit,letter,many1,parseOnly)
-import Data.Text (Text)
-import Data.Time.Calendar (Day,fromGregorian,gregorianMonthLength)
 import Data.Map (Map)
 import Data.Maybe
+import Data.Text (Text)
+import Data.Time.Calendar (Day,fromGregorian,gregorianMonthLength)
 import qualified Data.Char as Char
-import qualified Data.Text as Text
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 
 fuzzyMonth :: Parser Int
@@ -29,7 +28,7 @@ pMonthNum = do
 pMonth :: Parser Int
 pMonth = do
   mo <- many1 (Char.toLower <$> letter)
-  maybe (fail "invalid month name") (pure) (Map.lookup mo months)
+  maybe (fail "invalid month name") pure (Map.lookup mo months)
   where
     months :: Map String Int
     months = Map.fromList [ ("jan",  1), ("january"  ,  1)

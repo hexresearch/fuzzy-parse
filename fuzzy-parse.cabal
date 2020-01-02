@@ -27,7 +27,13 @@ maintainer:          dzuikov@gmail.com
 category:            Text
 extra-source-files:  CHANGELOG.md
 
+homepage:            https://github.com/hexresearch/fuzzy-parse
+bug-reports:         https://github.com/hexresearch/cabal/issues
+
 library
+
+  ghc-options:       -Wall
+
   exposed-modules:     Data.Text.Fuzzy.Tokenize 
                      , Data.Text.Fuzzy.Dates
 
