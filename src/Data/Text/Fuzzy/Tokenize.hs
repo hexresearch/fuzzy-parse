@@ -161,7 +161,7 @@ justTrue _ = False
 
 -- | Turn on character escaping inside string literals.
 -- Currently the following escaped characters are
--- supported: [" ' \ t n r \a b f v ]
+-- supported: [" ' \ t n r a b f v ]
 esc :: TokenizeSpec
 esc = mempty { tsEsc = pure True }
 
@@ -223,14 +223,14 @@ noslits = mempty { tsNoSlits = pure True }
 delims :: String -> TokenizeSpec
 delims s = mempty { tsDelims = Set.fromList s }
 
--- | Strip spaces on left side of a token
--- Does not affect string literals, i.e string are processed normally. Useful mostly during
+-- | Strip spaces on left side of a token.
+-- Does not affect string literals, i.e string are processed normally. Useful mostly for
 -- processing CSV-like formats, otherwise 'delims' may be used to skip unwanted spaces.
 sl :: TokenizeSpec
 sl = mempty { tsStripLeft = pure True }
 
--- | Strip spaces on right side of a token
--- Does not affect string literals, i.e string are processed normally. Useful mostly during
+-- | Strip spaces on right side of a token.
+-- Does not affect string literals, i.e string are processed normally. Useful mostly for
 -- processing CSV-like formats, otherwise 'delims' may be used to skip unwanted spaces.
 sr :: TokenizeSpec
 sr = mempty { tsStripRight = pure True }
@@ -238,7 +238,7 @@ sr = mempty { tsStripRight = pure True }
 -- | Strips spaces on right and left sides and transforms multiple spaces into the one.
 -- Name origins from  unwords . words
 --
--- Does not affect string literals, i.e string are processed normally. Useful mostly during
+-- Does not affect string literals, i.e string are processed normally. Useful mostly for
 -- processing CSV-like formats, otherwise 'delims' may be used to skip unwanted spaces.
 uw :: TokenizeSpec
 uw = mempty { tsUW = pure True }
