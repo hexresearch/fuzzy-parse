@@ -25,9 +25,14 @@ extra-source-files:  CHANGELOG.md
 homepage:            https://github.com/hexresearch/fuzzy-parse
 bug-reports:         https://github.com/hexresearch/fuzzy-parse/issues
 
+source-repository this
+  type:     git
+  location: https://github.com/hexresearch/fuzzy-parse.git
+  tag:      0.1.0.0
+
 library
 
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall
 
   exposed-modules:     Data.Text.Fuzzy.Tokenize 
                      , Data.Text.Fuzzy.Dates
@@ -45,21 +50,13 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
 
-  extensions:  BangPatterns
-             , DeriveDataTypeable
-             , DeriveGeneric
-             , DerivingStrategies
-             , FlexibleInstances
-             , FlexibleContexts
-             , FunctionalDependencies
-             , GeneralizedNewtypeDeriving
-             , MultiParamTypeClasses
-             , OverloadedStrings
-             , RecordWildCards
-             , ScopedTypeVariables
-             , TypeFamilies
+  default-extensions:  OverloadedStrings
+                     , FlexibleInstances
+                     , FlexibleContexts
+                     , GeneralizedNewtypeDeriving
 
 test-suite fuzzy-parse-test 
+    default-language:    Haskell2010
     type:       exitcode-stdio-1.0
     main-is:    Spec.hs 
     other-modules: FuzzyParseSpec
