@@ -1,6 +1,6 @@
 
 - [~] TODO: Tests
-- [ ] TODO: Freeze dependencies versions
+- [+] TODO: Freeze dependencies versions
 - [ ] TODO: Version number
 - [+] TODO: Haddocks
 - [ ] TODO: Tokenizer: Identation support

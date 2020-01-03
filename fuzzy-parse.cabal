@@ -23,7 +23,7 @@ category:            Text, Parsing
 extra-source-files:  CHANGELOG.md
 
 homepage:            https://github.com/hexresearch/fuzzy-parse
-bug-reports:         https://github.com/hexresearch/cabal/issues
+bug-reports:         https://github.com/hexresearch/fuzzy-parse/issues
 
 library
 
@@ -33,11 +33,12 @@ library
                      , Data.Text.Fuzzy.Dates
 
   other-modules:       Data.Text.Fuzzy.Attoparsec.Day
+
   build-depends:       base        >= 4.11 && <5
                      , attoparsec  >= 0.13
                      , containers
                      , mtl         >= 2.2
-                     , text        >= 1.1
+                     , text        >= 1.2
                      , time        >= 1.8
 
 
