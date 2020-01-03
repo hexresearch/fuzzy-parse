@@ -25,6 +25,9 @@ extra-source-files:  CHANGELOG.md
 homepage:            https://github.com/hexresearch/fuzzy-parse
 bug-reports:         https://github.com/hexresearch/fuzzy-parse/issues
 
+extra-source-files:
+    README.markdown
+
 source-repository this
   type:     git
   location: https://github.com/hexresearch/fuzzy-parse.git
