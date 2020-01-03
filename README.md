@@ -101,7 +101,7 @@ main = do
 
 ### About the delimeter tokens
 This type of tokens appears during a "delimited" formats processing and disappears in results.
-Currenly you will never see it unless normalization is turned of by 'nn' option.
+Currenly you will never see it unless normalization is turned off by 'nn' option.
 
 The delimeters make sense in case of processing the CSV-like formats, but in this case you probably
 need only values in results.
