@@ -1,4 +1,13 @@
--- | The lightweight and multi-functional text tokenizer allowing different types of text tokenization
+-- |
+-- Module      :  Data.Text.Fuzzy.Tokenize
+-- Copyright   :  Dmitry Zuikov 2020
+-- License     :  MIT
+--
+-- Maintainer  :  dzuikov@gmail.com
+-- Stability   :  experimental
+-- Portability :  unknown
+--
+-- The lightweight and multi-functional text tokenizer allowing different types of text tokenization
 -- depending on it's settings.
 --
 -- It may be used in different sutiations, for DSL, text markups or even for parsing simple grammars

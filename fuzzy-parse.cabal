@@ -17,14 +17,12 @@ description:
 
   See the README.md, examples and modules documentation for more.
 
--- description:
--- bug-reports:
 license:             MIT
 license-file:        LICENSE
 author:              Dmitry Zuikov
 maintainer:          dzuikov@gmail.com
--- copyright:
-category:            Text
+
+category:            Text, Parsing
 extra-source-files:  CHANGELOG.md
 
 homepage:            https://github.com/hexresearch/fuzzy-parse

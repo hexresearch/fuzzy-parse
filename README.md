@@ -60,6 +60,9 @@ tokenize spec "  a  b  c  : 'bebeb:colon inside' : qqq ::::"  :: [Maybe Text]
 ### Primitive lisp-like language
 
 ```haskell
+{-# LANGUAGE QuasiQuotes, ExtendedDefaultRules #-}
+
+import Text.InterpolatedString.Perl6 (q)
 import Data.Text.Fuzzy.Tokenize
 
 data TTok = TChar Char
@@ -121,4 +124,8 @@ tokenize spec "( delimeters , are , important, 'spaces are not');" :: [Text]
 For CSV-like formats it makes sense to split text to lines first, otherwise newline characters may
 cause to weird results
 
+
+# Authors
+
+This library is written and maintained by Dmitry Zuikov, dzuikov@gmail.com
 

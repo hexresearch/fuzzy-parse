@@ -1,4 +1,13 @@
--- | Dates fuzzy parsing.
+-- |
+-- Module      :  Data.Text.Fuzzy.Dates
+-- Copyright   :  Dmitry Zuikov 2020
+-- License     :  MIT
+--
+-- Maintainer  :  dzuikov@gmail.com
+-- Stability   :  experimental
+-- Portability :  unknown
+--
+-- Dates fuzzy parsing.
 -- Supports a number of dates format and tries to recover
 -- the incomplete dates from text, with use of some
 -- reasonable assumptions. Does not support locales,
