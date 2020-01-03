@@ -21,51 +21,39 @@ minimal set of escaped characters), punctuation characters and delimeters.
 
 ```haskell
 tokenize (delims ":") "aaa : bebeb : qqq ::::" :: [Text]
-```
 
-```
 ["aaa "," bebeb "," qqq "]
 ```
 
 ```haskell
 tokenize (delims ":"<>sq<>emptyFields ) "aaa : bebeb : qqq ::::" :: [Text]
-```
 
-```
 ["aaa "," bebeb "," qqq ","","","",""]
 ```
 
 ```haskell
 tokenize (delims ":"<>sq<>emptyFields ) "aaa : bebeb : qqq ::::" :: [Maybe Text]
-```
 
-```
 [Just "aaa ",Just " bebeb ",Just " qqq ",Nothing,Nothing,Nothing,Nothing]
 ```
 
 ```haskell
 tokenize (delims ":"<>sq<>emptyFields ) "aaa : 'bebeb:colon inside' : qqq ::::" :: [Maybe Text]
-```
 
-```
 [Just "aaa ",Just " ",Just "bebeb:colon inside",Just " ",Just " qqq ",Nothing,Nothing,Nothing,Nothing]
 ```
 
 ```haskell
 let spec = sl<>delims ":"<>sq<>emptyFields<>noslits
 tokenize spec "   aaa :   'bebeb:colon inside' : qqq ::::" :: [Maybe Text]
-```
 
-```
 [Just "aaa ",Just "bebeb:colon inside ",Just "qqq ",Nothing,Nothing,Nothing,Nothing]
 ```
 
 ```haskell
 let spec = delims ":"<>sq<>emptyFields<>uw<>noslits
 tokenize spec "  a  b  c  : 'bebeb:colon inside' : qqq ::::"  :: [Maybe Text]
-```
 
-```
 [Just "a b c",Just "bebeb:colon inside",Just "qqq",Nothing,Nothing,Nothing,Nothing]
 ```
 
@@ -108,10 +96,6 @@ main = do
 
    print toks
 ```
-
-```
-```
-
 
 ## Notes
 
