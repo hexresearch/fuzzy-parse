@@ -12,7 +12,7 @@ description:
   grammars easier and sometimes faster than in case of usage mainstream parsing combinators
   or parser generators.
 
-  See the README.md, examples and modules documentation for more.
+  See the README.markdown, examples and modules documentation for more.
 
 license:             MIT
 license-file:        LICENSE
