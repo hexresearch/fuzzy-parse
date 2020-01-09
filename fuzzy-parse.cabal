@@ -1,7 +1,7 @@
 cabal-version:       2.2
 
 name:                fuzzy-parse
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            Tools for processing unstructured text data
 
 description:
@@ -39,6 +39,7 @@ library
 
   exposed-modules:     Data.Text.Fuzzy.Tokenize 
                      , Data.Text.Fuzzy.Dates
+                     , Data.Text.Fuzzy.Section
 
   other-modules:       Data.Text.Fuzzy.Attoparsec.Day
 
