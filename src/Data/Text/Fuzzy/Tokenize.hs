@@ -82,20 +82,23 @@ module Data.Text.Fuzzy.Tokenize ( TokenizeSpec
                                 , delims
                                 , comment
                                 , punct
+                                , indent
+                                , itabstops
                                 , keywords
                                 ) where
 
 import Prelude hiding (init)
 
-import Data.Set (Set)
-import Data.Map (Map)
-import Data.Text (Text)
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified Data.List as List
-import Data.Monoid()
 import Control.Applicative
+import Data.Map (Map)
+import Data.Maybe (fromMaybe)
+import Data.Monoid()
+import Data.Set (Set)
+import Data.Text (Text)
+import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 import Control.Monad.RWS
 
@@ -115,6 +118,8 @@ data TokenizeSpec = TokenizeSpec { tsAtoms          :: Set Text
                                  , tsEsc            :: Maybe Bool
                                  , tsAddEmptyFields :: Maybe Bool
                                  , tsPunct          :: Set Char
+                                 , tsIndent         :: Maybe Bool
+                                 , tsItabStops      :: Maybe Int
                                  , tsKeywords       :: Set Text
                                  }
                     deriving (Eq,Ord,Show)
@@ -134,6 +139,8 @@ instance Semigroup TokenizeSpec where
                           , tsEsc         = tsEsc b <|> tsEsc a
                           , tsAddEmptyFields = tsAddEmptyFields b <|> tsAddEmptyFields a
                           , tsPunct = tsPunct b <> tsPunct a
+                          , tsIndent = tsIndent b <|> tsIndent a
+                          , tsItabStops = tsItabStops b <|> tsItabStops a
                           , tsKeywords = tsKeywords b <> tsKeywords a
                           }
 
@@ -151,6 +158,8 @@ instance Monoid TokenizeSpec where
                         , tsEsc = Nothing
                         , tsAddEmptyFields = Nothing
                         , tsPunct = mempty
+                        , tsIndent = Nothing
+                        , tsItabStops = Nothing
                         , tsKeywords = mempty
                         }
 
@@ -279,6 +288,17 @@ punct s = mempty { tsPunct = Set.fromList (Text.unpack s) }
 keywords :: [Text] -> TokenizeSpec
 keywords s = mempty { tsKeywords = Set.fromList s }
 
+-- | Enable identation support
+indent :: TokenizeSpec
+indent = mempty { tsIndent = Just True }
+
+-- | Set tab expanding multiplier
+-- i.e. each tab extends into n spaces before processing.
+-- It also turns on the indentation. Only the tabs at the beginning of the string are expanded,
+-- i.e. before the first non-space character appears.
+itabstops :: Int -> TokenizeSpec
+itabstops n = mempty { tsIndent = Just True, tsItabStops = pure n }
+
 newtype TokenizeM w a = TokenizeM (RWS TokenizeSpec w () a)
                         deriving( Applicative
                                 , Functor
@@ -296,6 +316,7 @@ data Token = TChar Char
            | TKeyword Text
            | TEmpty
            | TDelim
+           | TIndent Int
            deriving (Eq,Ord,Show)
 
 -- | Typeclass for token values.
@@ -322,6 +343,10 @@ class IsToken a where
   -- | Create a delimeter token
   mkDelim  :: a
   mkDelim = mkEmpty
+
+  -- | Creates an indent token
+  mkIndent :: Int -> a
+  mkIndent = const mkEmpty
 
 instance IsToken (Maybe Text) where
   mkChar = pure . Text.singleton
@@ -354,6 +379,7 @@ tokenize s t = map tr t1
     tr TEmpty  = mkEmpty
     tr (TPunct c) = mkPunct c
     tr TDelim  = mkDelim
+    tr (TIndent n) = mkIndent n
 
 execTokenizeM :: TokenizeM [Token] a -> TokenizeSpec -> [Token]
 execTokenizeM (TokenizeM m) spec =
@@ -363,15 +389,22 @@ execTokenizeM (TokenizeM m) spec =
                | otherwise = normalize spec x
 
 tokenize' :: TokenizeSpec -> Text -> [Token]
-tokenize' spec txt = execTokenizeM (root txt) spec
+tokenize' spec txt = execTokenizeM (root' txt) spec
   where
 
+    r = spec
+
+    noIndent = not doIndent
+    doIndent = justTrue (tsIndent r)
+
+    root' x = scanIndent x >>= root
+
     root ts = do
-      r <- ask
 
       case Text.uncons ts of
         Nothing           -> pure ()
 
+        Just ('\n', rest) | doIndent                  -> root' rest
         Just (c, rest)    | Set.member c (tsDelims r) -> tell [TDelim]  >> root rest
         Just ('\'', rest) | justTrue (tsStringQ r)    -> scanQ '\'' rest
         Just ('"', rest)  | justTrue (tsStringQQ r)   -> scanQ '"' rest
@@ -383,16 +416,25 @@ tokenize' spec txt = execTokenizeM (root txt) spec
         Just (c, rest)    | otherwise                 -> tell [TChar c] >> root rest
 
 
+    expandSpace ' '  = 1
+    expandSpace '\t' = (fromMaybe 8 (tsItabStops r))
+    expandSpace _    = 0
+
+    scanIndent x | noIndent = pure x
+                 | otherwise = do
+      let (ss,as) = Text.span (\c -> c == ' ' || c == '\t') x
+      tell [ TIndent (sum (map expandSpace (Text.unpack ss))) ]
+      pure as
+
     scanComment (c,rest) = do
       suff <- Map.lookup c <$> asks tsLineComment
       case suff of
         Just t | Text.isPrefixOf t rest -> do
-           root $ Text.drop 1 $ Text.dropWhile ('\n' /=) rest
+           root $ Text.dropWhile ('\n' /=) rest
 
         _  -> tell [TChar c] >> root rest
 
     scanQ q ts = do
-      r <- ask
 
       case Text.uncons ts of
         Nothing           -> root ts
@@ -428,6 +470,11 @@ normalize spec tokens = snd $ execRWS (go tokens) () init
   where
 
     go [] = addEmptyField
+
+    go s@(TIndent _ : _) = do
+      let (iis, rest') = List.span isIndent s
+      tell [TIndent (sum [k | TIndent k <- iis])]
+      go rest'
 
     go (TChar c0 : cs) = do
       let (n,ns) = List.span isTChar cs
@@ -471,6 +518,9 @@ normalize spec tokens = snd $ execRWS (go tokens) () init
 
     isTSChar (TSChar _) = True
     isTSChar _          = False
+
+    isIndent (TIndent _) = True
+    isIndent _           = False
 
     init = NormStats { nstatBeforeDelim = 0 }
 

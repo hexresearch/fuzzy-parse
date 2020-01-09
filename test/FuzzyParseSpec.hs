@@ -17,6 +17,7 @@ data TTok = TChar Char
           | TStrLit Text
           | TKeyword Text
           | TEmpty
+          | TIndent Int
           deriving(Eq,Ord,Show)
 
 instance IsToken TTok where
@@ -27,6 +28,7 @@ instance IsToken TTok where
   mkStrLit = TStrLit
   mkKeyword = TKeyword
   mkEmpty = TEmpty
+  mkIndent n = TIndent n
 
 spec :: Spec
 spec = do
@@ -84,4 +86,38 @@ spec = do
                                   ,TPunct ')',TPunct ')']
 
       toks `shouldBe` expected
+
+
+    describe "Checks indentation support" $ do
+
+      let spec = delims " \n\t" <> comment ";"
+                                <> punct "{}()[]<>"
+                                <> sq <> sqq
+                                <> uw
+                                <> indent
+                                <> itabstops 8
+                                <> keywords ["define"]
+
+
+      it "parses some indented blocks" $ do
+
+        let pyLike = [q|
+define a      0
+  atom foo    2
+  define aq   2
+    atom one  4
+    atom two  4
+
+define  b       0
+  atom baar     2
+  atom quux     2
+  define new    2
+      atom bar  6
+    atom fuu    4
+
+|]
+        let toks = tokenize spec pyLike :: [TTok]
+        mapM_ print toks
+        toks `shouldBe` []
+
 
