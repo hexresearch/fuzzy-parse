@@ -99,7 +99,22 @@ spec = do
                                 <> keywords ["define"]
 
 
+
       it "parses some indented blocks" $ do
+
+        let expected = [ TIndent 0, TKeyword "define", TText "a", TText "0"
+                       , TIndent 2, TText "atom", TText "foo", TText "2"
+                       , TIndent 2, TKeyword "define", TText "aq", TText "2"
+                       , TIndent 4, TText "atom", TText "one", TText "4"
+                       , TIndent 4, TText "atom", TText "two", TText "4"
+                       , TIndent 0, TKeyword "define", TText "b", TText "0"
+                       , TIndent 2, TText "atom", TText "baar", TText "2"
+                       , TIndent 2, TText "atom", TText "quux", TText "2"
+                       , TIndent 2, TKeyword "define", TText "new", TText "2"
+                       , TIndent 6, TText "atom", TText "bar", TText "6"
+                       , TIndent 4, TText "atom", TText "fuu", TText "4"
+                       , TIndent 0
+                       ]
 
         let pyLike = [q|
 define a      0
@@ -117,7 +132,6 @@ define  b       0
 
 |]
         let toks = tokenize spec pyLike :: [TTok]
-        mapM_ print toks
-        toks `shouldBe` []
+        toks `shouldBe` expected
 
 
