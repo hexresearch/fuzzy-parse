@@ -1,5 +1,5 @@
-module Data.Parse.Fuzzy.Attoparsec.Month ( fuzzyMonth, fuzzyMonthFromText
-                                         ) where
+module Data.Text.Fuzzy.Attoparsec.Month ( fuzzyMonth, fuzzyMonthFromText
+                                        ) where
 
 import Control.Applicative ((<|>))
 import Data.Attoparsec.Text (Parser,decimal,digit,letter,many1,parseOnly)
