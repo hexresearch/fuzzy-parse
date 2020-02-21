@@ -40,8 +40,7 @@ library
   exposed-modules:     Data.Text.Fuzzy.Tokenize 
                      , Data.Text.Fuzzy.Dates
                      , Data.Text.Fuzzy.Section
-
-  other-modules:       Data.Text.Fuzzy.Attoparsec.Day
+                     , Data.Text.Fuzzy.Attoparsec.Day
 
   build-depends:       base        >= 4.11 && <5
                      , attoparsec  >= 0.13
