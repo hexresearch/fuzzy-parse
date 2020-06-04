@@ -85,6 +85,7 @@ module Data.Text.Fuzzy.Tokenize ( TokenizeSpec
                                 , indent
                                 , itabstops
                                 , keywords
+                                , eol
                                 ) where
 
 import Prelude hiding (init)
@@ -111,6 +112,7 @@ data TokenizeSpec = TokenizeSpec { tsAtoms          :: Set Text
                                  , tsNoSlits        :: Maybe Bool
                                  , tsLineComment    :: Map Char Text
                                  , tsDelims         :: Set Char
+                                 , tsEol            :: Maybe Bool
                                  , tsStripLeft      :: Maybe Bool
                                  , tsStripRight     :: Maybe Bool
                                  , tsUW             :: Maybe Bool
@@ -132,6 +134,7 @@ instance Semigroup TokenizeSpec where
                           , tsNoSlits     = tsNoSlits b <|> tsNoSlits a
                           , tsLineComment = tsLineComment b <> tsLineComment a
                           , tsDelims      = tsDelims b <> tsDelims a
+                          , tsEol         = tsEol b <|> tsEol a
                           , tsStripLeft   = tsStripLeft b <|> tsStripLeft a
                           , tsStripRight  = tsStripRight b <|> tsStripRight a
                           , tsUW          = tsUW b <|> tsUW a
@@ -151,6 +154,7 @@ instance Monoid TokenizeSpec where
                         , tsNoSlits = Nothing
                         , tsLineComment = mempty
                         , tsDelims = mempty
+                        , tsEol = Nothing
                         , tsStripLeft = Nothing
                         , tsStripRight = Nothing
                         , tsUW = Nothing
@@ -167,6 +171,10 @@ instance Monoid TokenizeSpec where
 justTrue :: Maybe Bool -> Bool
 justTrue (Just True) = True
 justTrue _ = False
+
+-- | Turns on EOL token generation
+eol :: TokenizeSpec
+eol = mempty { tsEol = pure True }
 
 -- | Turn on character escaping inside string literals.
 -- Currently the following escaped characters are
@@ -317,6 +325,7 @@ data Token = TChar Char
            | TEmpty
            | TDelim
            | TIndent Int
+           | TEol
            deriving (Eq,Ord,Show)
 
 -- | Typeclass for token values.
@@ -347,6 +356,10 @@ class IsToken a where
   -- | Creates an indent token
   mkIndent :: Int -> a
   mkIndent = const mkEmpty
+
+  -- | Creates an EOL token
+  mkEol :: a
+  mkEol = mkEmpty
 
 instance IsToken (Maybe Text) where
   mkChar = pure . Text.singleton
@@ -380,6 +393,7 @@ tokenize s t = map tr t1
     tr (TPunct c) = mkPunct c
     tr TDelim  = mkDelim
     tr (TIndent n) = mkIndent n
+    tr TEol = mkEol
 
 execTokenizeM :: TokenizeM [Token] a -> TokenizeSpec -> [Token]
 execTokenizeM (TokenizeM m) spec =
@@ -396,6 +410,7 @@ tokenize' spec txt = execTokenizeM (root' txt) spec
 
     noIndent = not doIndent
     doIndent = justTrue (tsIndent r)
+    eolOk = justTrue (tsEol r)
 
     root' x = scanIndent x >>= root
 
@@ -404,7 +419,7 @@ tokenize' spec txt = execTokenizeM (root' txt) spec
       case Text.uncons ts of
         Nothing           -> pure ()
 
-        Just ('\n', rest) | doIndent                  -> root' rest
+        Just ('\n', rest) | doIndent                  -> raiseEol >> root' rest
         Just (c, rest)    | Set.member c (tsDelims r) -> tell [TDelim]  >> root rest
         Just ('\'', rest) | justTrue (tsStringQ r)    -> scanQ '\'' rest
         Just ('"', rest)  | justTrue (tsStringQQ r)   -> scanQ '"' rest
@@ -415,6 +430,9 @@ tokenize' spec txt = execTokenizeM (root' txt) spec
 
         Just (c, rest)    | otherwise                 -> tell [TChar c] >> root rest
 
+
+    raiseEol | eolOk = tell [TEol]
+             | otherwise = pure ()
 
     expandSpace ' '  = 1
     expandSpace '\t' = (fromMaybe 8 (tsItabStops r))
