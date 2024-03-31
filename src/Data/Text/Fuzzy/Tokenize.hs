@@ -101,6 +101,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
+import Control.Monad (when)
 import Control.Monad.RWS
 
 -- | Tokenization settings. Use mempty for an empty value
