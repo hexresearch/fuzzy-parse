@@ -19,6 +19,14 @@ outputs = { self, nixpkgs, haskell-flake-utils, ... }@inputs:
       # DON'T FORGET TO PUT YOUR PACKAGE NAME HERE, REMOVING `throw`
       name = "fuzzy-parse";
 
+      shellExtBuildInputs = {pkgs}: with pkgs; [
+        haskellPackages.haskell-language-server
+      ];
+
+      # Wether to build hoogle in the default shell
+      shellWithHoogle = true;
+
+
       ## Optional parameters follow
 
       # nixpkgs config

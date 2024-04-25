@@ -28,12 +28,49 @@ bug-reports:         https://github.com/hexresearch/fuzzy-parse/issues
 extra-source-files:
     README.markdown
 
+common shared-properties
+
+  default-language:    Haskell2010
+
+  default-extensions:
+                       ApplicativeDo
+                     , BangPatterns
+                     , BlockArguments
+                     , ConstraintKinds
+                     , DataKinds
+                     , DeriveDataTypeable
+                     , DeriveGeneric
+                     , DerivingStrategies
+                     , DerivingVia
+                     , ExtendedDefaultRules
+                     , FlexibleContexts
+                     , FlexibleInstances
+                     , GADTs
+                     , GeneralizedNewtypeDeriving
+                     , ImportQualifiedPost
+                     , LambdaCase
+                     , MultiParamTypeClasses
+                     , OverloadedStrings
+                     , QuasiQuotes
+                     , RecordWildCards
+                     , ScopedTypeVariables
+                     , StandaloneDeriving
+                     , TemplateHaskell
+                     , TupleSections
+                     , TypeApplications
+                     , TypeFamilies
+
+
+
+
 source-repository this
   type:     git
   location: https://github.com/hexresearch/fuzzy-parse.git
   tag:      0.1.0.0
 
 library
+
+  import:           shared-properties
 
   ghc-options:       -Wall
 
@@ -52,25 +89,27 @@ library
                      , time
 
   hs-source-dirs:      src
-  default-language:    Haskell2010
 
-  default-extensions:  OverloadedStrings
-                     , FlexibleInstances
-                     , FlexibleContexts
-                     , GeneralizedNewtypeDeriving
+
 
 test-suite fuzzy-parse-test
+    import:           shared-properties
     default-language:    Haskell2010
+
     type:       exitcode-stdio-1.0
     main-is:    Spec.hs
     other-modules: FuzzyParseSpec
     hs-source-dirs: test
     build-depends: base
+                 , containers
                  , hspec
                  , hspec-discover
                  , fuzzy-parse
                  , interpolatedstring-perl6
                  , text
+                 , mtl
+                 , transformers
+                 , exceptions
     build-tool-depends: hspec-discover:hspec-discover == 2.*
 
 

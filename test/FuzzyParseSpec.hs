@@ -1,6 +1,12 @@
 {-# LANGUAGE   OverloadedStrings
              , QuasiQuotes
-             , ExtendedDefaultRules #-}
+             , ExtendedDefaultRules
+             , LambdaCase
+             , ImportQualifiedPost
+             , DerivingStrategies
+             , PatternSynonyms
+             , ViewPatterns
+#-}
 
 module FuzzyParseSpec (spec) where
 
@@ -8,7 +14,17 @@ import Data.Text (Text)
 import Test.Hspec
 import Text.InterpolatedString.Perl6 (q)
 
+import Data.Function
+import Data.Functor
 import Data.Text.Fuzzy.Tokenize
+import Data.List qualified  as L
+import Data.Either
+import Control.Monad.Reader
+import Data.Map qualified as Map
+import Data.Typeable
+import Control.Exception
+import Control.Monad.Except
+import Data.Maybe
 
 data TTok = TChar Char
           | TSChar Char
@@ -28,7 +44,89 @@ instance IsToken TTok where
   mkStrLit = TStrLit
   mkKeyword = TKeyword
   mkEmpty = TEmpty
-  mkIndent n = TIndent n
+  mkIndent = TIndent
+
+
+data SExpParseError =
+    ParensOver
+  | ParensUnder
+  | ParensUnmatched
+  deriving stock (Show,Typeable)
+
+
+data MicroSexp =
+    List   [MicroSexp]
+  | Symbol Text
+  | String Text
+  deriving stock (Show)
+
+
+nil :: MicroSexp
+nil = List []
+
+symbol :: Text -> MicroSexp
+symbol = Symbol
+
+str :: Text -> MicroSexp
+str = String
+
+tokenizeSexp :: Text -> [TTok]
+tokenizeSexp txt =  do
+  let spec = delims " \t" <> comment ";"
+                          <> punct "{}()[]\n\r"
+                          <> sq <> sqq
+                          <> uw
+  tokenize spec txt
+
+parseSexp :: MonadError SExpParseError m => Text -> m MicroSexp
+parseSexp txt = do
+  tokenizeSexp txt & sexp <&> fst
+
+
+sexp :: MonadError SExpParseError m => [TTok] -> m (MicroSexp, [TTok])
+sexp s = case filtered s of
+  [] -> pure (nil, mempty)
+  (TText s : w) -> pure (Symbol s, w)
+
+  (TStrLit s : w) -> pure (String s, w)
+
+  (TPunct c : rest) | isBrace c  ->
+    maybe (pure (nil, rest)) (`list` rest) (closing c)
+
+                    | otherwise -> error (show c) -- throwError ParensOver
+
+  where
+    filtered xs = flip filter xs $ \case
+      TPunct '\r' -> False
+      TPunct '\n' -> False
+      _           -> True
+
+    isBrace c = Map.member c braces
+
+    closing c = Map.lookup c braces
+
+    isClosing = isJust . closing
+
+    braces = Map.fromList[ ('{', '}')
+                         , ('(', ')')
+                         , ('[', ']')
+                         ]
+
+    -- list :: (Monad m, MonadError SExpParseError m) => Char -> [TTok] -> m (MicroSexp, [TTok])
+    list c = go c mempty
+      where
+
+        isClosing :: Char -> Bool
+        isClosing c = c `elem` ")}]"
+
+        go cl acc [] = pure (List mempty, mempty)
+
+        go cl acc (TPunct c : rest) | isClosing c && c == cl = pure (List acc, rest)
+                                    | isClosing c && c /= cl = throwError ParensUnmatched
+
+        go cl acc rest = do
+          (e,r) <- sexp rest
+          go cl (acc <> [e]) r
 
 spec :: Spec
 spec = do
