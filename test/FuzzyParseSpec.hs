@@ -24,6 +24,7 @@ import Data.Map qualified as Map
 import Data.Typeable
 import Control.Exception
 import Control.Monad.Except
+import Control.Monad.RWS
 import Data.Maybe
 
 data TTok = TChar Char
@@ -70,6 +71,20 @@ symbol = Symbol
 str :: Text -> MicroSexp
 str = String
 
+newtype SExpState =
+  SExpState
+  { sexpLno :: Int
+  }
+
+newtype SExpM m a = SExpM { fromSexpM :: RWST () () SExpState m a }
+                    deriving newtype
+                      ( Applicative
+                      , Functor
+                      , Monad
+                      , MonadState SExpState
+                      , MonadTrans
+                      )
+
 tokenizeSexp :: Text -> [TTok]
 tokenizeSexp txt =  do
   let spec = delims " \t" <> comment ";"
@@ -78,12 +93,14 @@ tokenizeSexp txt =  do
                           <> uw
   tokenize spec txt
 
+runSexpM :: Monad m => SExpM m a -> m a
+runSexpM f = evalRWST (fromSexpM f) () (SExpState 0) <&> fst
+
 parseSexp :: MonadError SExpParseError m => Text -> m MicroSexp
 parseSexp txt = do
-  tokenizeSexp txt & sexp <&> fst
+  runSexpM (sexp (tokenizeSexp txt)) <&> fst
 
-
-sexp :: MonadError SExpParseError m => [TTok] -> m (MicroSexp, [TTok])
+sexp :: MonadError SExpParseError m => [TTok] -> SExpM m (MicroSexp, [TTok])
 sexp s = case filtered s of
   [] -> pure (nil, mempty)
   (TText s : w) -> pure (Symbol s, w)
@@ -93,7 +110,7 @@ sexp s = case filtered s of
   (TPunct c : rest) | isBrace c  ->
     maybe (pure (nil, rest)) (`list` rest) (closing c)
 
-                    | otherwise -> error (show c) -- throwError ParensOver
+                    | otherwise -> lift $ throwError ParensOver
 
   where
     filtered xs = flip filter xs $ \case
@@ -112,7 +129,6 @@ sexp s = case filtered s of
                          , ('[', ']')
                          ]
 
-    -- list :: (Monad m, MonadError SExpParseError m) => Char -> [TTok] -> m (MicroSexp, [TTok])
     list c = go c mempty
       where
 
@@ -122,7 +138,7 @@ sexp s = case filtered s of
         go cl acc [] = pure (List mempty, mempty)
 
         go cl acc (TPunct c : rest) | isClosing c && c == cl = pure (List acc, rest)
-                                    | isClosing c && c /= cl = throwError ParensUnmatched
+                                    | isClosing c && c /= cl = lift $ throwError ParensUnmatched
 
         go cl acc rest = do
           (e,r) <- sexp rest
