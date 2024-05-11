@@ -6,6 +6,7 @@
              , DerivingStrategies
              , PatternSynonyms
              , ViewPatterns
+             , MultiWayIf
 #-}
 
 module FuzzyParseSpec (spec) where
@@ -14,6 +15,7 @@ import Data.Text (Text)
 import Test.Hspec
 import Text.InterpolatedString.Perl6 (q)
 
+import Control.Applicative
 import Data.Function
 import Data.Functor
 import Data.Text.Fuzzy.Tokenize
@@ -26,6 +28,17 @@ import Control.Exception
 import Control.Monad.Except
 import Control.Monad.RWS
 import Data.Maybe
+import Data.Generics.Uniplate.Operations
+import Data.Data
+import Data.Generics.Uniplate.Data()
+import Data.Generics.Uniplate.Operations
+import GHC.Generics()
+import Safe
+import Data.Data
+import GHC.Generics
+import Data.Generics.Uniplate.Operations
+import Lens.Micro.Platform
+import Data.Text qualified as Text
 
 data TTok = TChar Char
           | TSChar Char
@@ -35,7 +48,7 @@ data TTok = TChar Char
           | TKeyword Text
           | TEmpty
           | TIndent Int
-          deriving(Eq,Ord,Show)
+          deriving stock (Eq,Ord,Show,Data,Generic)
 
 instance IsToken TTok where
   mkChar = TChar
@@ -55,12 +68,18 @@ data SExpParseError =
   deriving stock (Show,Typeable)
 
 
-data MicroSexp =
-    List   [MicroSexp]
-  | Symbol Text
-  | String Text
-  deriving stock (Show)
+data NumType =
+    NumInteger Integer
+  | NumDouble  Double
+  deriving stock (Eq,Ord,Show,Data,Generic)
 
+data MicroSexp =
+    List    [MicroSexp]
+  | Symbol  Text
+  | String  Text
+  | Number  NumType
+  | Boolean Bool
+  deriving stock (Show,Data,Generic)
 
 nil :: MicroSexp
 nil = List []
@@ -71,17 +90,26 @@ symbol = Symbol
 str :: Text -> MicroSexp
 str = String
 
+newtype SExpEnv =
+  SExpEnv
+  { sexpTranslate :: Bool
+  }
+
 newtype SExpState =
   SExpState
   { sexpLno :: Int
   }
 
-newtype SExpM m a = SExpM { fromSexpM :: RWST () () SExpState m a }
+defEnv :: SExpEnv
+defEnv = SExpEnv True
+
+newtype SExpM m a = SExpM { fromSexpM :: RWST SExpEnv () SExpState m a }
                     deriving newtype
                       ( Applicative
                       , Functor
                       , Monad
                       , MonadState SExpState
+                      , MonadReader SExpEnv
                       , MonadTrans
                       )
 
@@ -94,7 +122,7 @@ tokenizeSexp txt =  do
   tokenize spec txt
 
 runSexpM :: Monad m => SExpM m a -> m a
-runSexpM f = evalRWST (fromSexpM f) () (SExpState 0) <&> fst
+runSexpM f = evalRWST (fromSexpM f) defEnv (SExpState 0) <&> fst
 
 parseSexp :: MonadError SExpParseError m => Text -> m MicroSexp
 parseSexp txt = do
@@ -103,7 +131,7 @@ parseSexp txt = do
 sexp :: MonadError SExpParseError m => [TTok] -> SExpM m (MicroSexp, [TTok])
 sexp s = case filtered s of
   [] -> pure (nil, mempty)
-  (TText s : w) -> pure (Symbol s, w)
+  (TText s : w) -> transformBiM trNum (Symbol s, w)
 
   (TStrLit s : w) -> pure (String s, w)
 
@@ -113,6 +141,29 @@ sexp s = case filtered s of
                     | otherwise -> lift $ throwError ParensOver
 
   where
+
+    trNum tok = do
+
+      trans <- asks sexpTranslate
+
+      case tok of
+        Symbol s | trans -> do
+          let s0 = Text.unpack s
+
+          let what = Number . NumInteger <$> readMay @Integer s0
+                    <|>
+                    Number . NumDouble <$> readMay @Double s0
+                    <|>
+                    ( if | s == "#t"  -> (Just (Boolean True) )
+                         | s == "#f"  -> (Just (Boolean False) )
+                         | otherwise  -> Nothing
+                    )
+
+          pure $ fromMaybe (Symbol s) what
+
+
+        x        -> pure x
+
     filtered xs = flip filter xs $ \case
       TPunct '\r' -> False
       TPunct '\n' -> False
@@ -127,6 +178,7 @@ sexp s = case filtered s of
     braces = Map.fromList[ ('{', '}')
                          , ('(', ')')
                          , ('[', ']')
+                         , ('<', '>')
                          ]
 
     list c = go c mempty

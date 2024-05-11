@@ -110,6 +110,9 @@ test-suite fuzzy-parse-test
                  , mtl
                  , transformers
                  , exceptions
+                 , uniplate
+                 , microlens-platform
+                 , safe
     build-tool-depends: hspec-discover:hspec-discover == 2.*
 
 
