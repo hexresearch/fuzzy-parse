@@ -134,8 +134,8 @@ instance MonadError SExpParseError m => MonadError SExpParseError (SExpM m) wher
 tokenizeSexp :: Text -> [TTok]
 tokenizeSexp txt =  do
   let spec = delims " \r\t" <> comment ";"
-                          <> punct "{}()[]\n"
-                          <> sq <> sqq
+                          <> punct "'{}()[]\n"
+                          <> sqq
                           <> uw
   tokenize spec txt
 
@@ -186,7 +186,6 @@ parseTop txt = do
           flip fix (mempty,tokens) $ \next -> \case
             (acc, []) -> do
               emit acc
-
             (acc, TPunct '\n' : rest) -> do
               emit acc
               next (mempty,rest)
@@ -219,6 +218,9 @@ sexp s = case s of
 
   (TStrLit s : w) -> pure (String s, w)
 
+  -- so far ignored
+  (TPunct '\'' : rest) -> sexp rest
+
   (TPunct c : rest) | isSpace c  -> sexp rest
 
   (TPunct c : rest) | isBrace c  ->
@@ -227,7 +229,6 @@ sexp s = case s of
                         throwError ParensOver
 
   ( w : _ ) -> throwError SyntaxError
-
 
   where
 
