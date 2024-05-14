@@ -239,9 +239,10 @@ sexp s = case s of
                     <|>
                     Number . NumDouble <$> readMay @Double s0
                     <|>
-                    ( if | s == "#t"  -> (Just (Boolean True) )
-                         | s == "#f"  -> (Just (Boolean False) )
-                         | otherwise  -> Nothing
+                    ( case  s of
+                        "#t" -> Just (Boolean True)
+                        "#f" -> Just (Boolean False)
+                        _    -> Nothing
                     )
 
           pure $ fromMaybe (Symbol s) what
