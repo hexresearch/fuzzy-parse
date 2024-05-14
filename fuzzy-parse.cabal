@@ -66,11 +66,17 @@ library
 
   import:           shared-properties
 
-  ghc-options:       -Wall
+  ghc-options:
+        -Wall
+        -fno-warn-type-defaults
+        -O2
+        "-with-rtsopts=-N4 -A64m -AL256m -I0"
+
 
   exposed-modules:     Data.Text.Fuzzy.Tokenize
                      , Data.Text.Fuzzy.Dates
                      , Data.Text.Fuzzy.Section
+                     , Data.Text.Fuzzy.SExp
                      , Data.Text.Fuzzy.Attoparsec.Day
                      , Data.Text.Fuzzy.Attoparsec.Month
 
@@ -82,6 +88,9 @@ library
                      , streaming
                      , text
                      , time
+                     , microlens-platform
+                     , uniplate
+                     , timeit
 
   hs-source-dirs:      src
 
@@ -90,6 +99,13 @@ library
 test-suite fuzzy-parse-test
     import:           shared-properties
     default-language:   GHC2021
+
+    ghc-options:
+          -Wall
+          -fno-warn-type-defaults
+          -O2
+          "-with-rtsopts=-N4 -A64m -AL256m -I0"
+
 
     type:       exitcode-stdio-1.0
     main-is:    Spec.hs
@@ -108,6 +124,8 @@ test-suite fuzzy-parse-test
                  , uniplate
                  , microlens-platform
                  , safe
+                 , timeit
+
     build-tool-depends: hspec-discover:hspec-discover == 2.*
 
 
