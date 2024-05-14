@@ -73,6 +73,7 @@ data SExpParseError =
     ParensOver
   | ParensUnder
   | ParensUnmatched
+  | SyntaxError
   deriving stock (Show,Typeable)
 
 
@@ -154,18 +155,25 @@ braces = Map.fromList[ ('{', '}')
                      , ('<', '>')
                      ]
 
+oBraces :: [Char]
+oBraces = Map.keys braces
 
+cBraces :: [Char]
+cBraces = Map.elems braces
 
 parseSexp :: (MonadIO m, MonadError SExpParseError m) => Text -> m MicroSexp
 parseSexp txt = do
   (s, rest) <- runSexpM do
                 (s,rest) <- sexp (tokenizeSexp txt)
-                when (null rest) do
-                  braces <- gets (view sexpBraces)
-                  unless (null braces) $ lift $ throwError ParensUnder
+                checkBraces
                 pure (s,rest)
 
   pure s
+
+checkBraces :: (MonadError SExpParseError m) => SExpM m ()
+checkBraces = do
+  braces <- gets (view sexpBraces)
+  unless (null braces) $ lift $ throwError ParensUnder
 
 parseTop :: MonadError SExpParseError m => Text -> m [MicroSexp]
 parseTop txt = do
@@ -173,24 +181,25 @@ parseTop txt = do
   r <- S.toList_ $ runSexpM do
           flip fix (mempty,tokens) $ \next -> \case
             (acc, []) -> do
-              traceM  "JOPA?"
               emit acc
 
             (acc, TPunct '\n' : rest) -> do
               emit acc
-              traceM  "KITA?"
               next (mempty,rest)
             (acc, rest) -> do
               (s, xs) <- sexp rest
-              traceM ( "PECHEN?" <> show (s,xs))
               next (acc <> [s],xs)
 
-  pure $ unlist r
+  pure $ unlist (fmap unlist' r)
 
   where
 
     emit [] = pure ()
     emit x  = lift $ S.yield (List x)
+
+    unlist' = \case
+      List [List x] -> List x
+      x -> x
 
     unlist = \case
       [List xs] -> xs
@@ -198,7 +207,10 @@ parseTop txt = do
 
 sexp :: MonadError SExpParseError m => [TTok] -> SExpM m (MicroSexp, [TTok])
 sexp s = case s of
-  [] -> pure (nil, mempty)
+  [] -> do
+    checkBraces
+    pure (nil, mempty)
+
   (TText s : w) -> transformBiM trNum (Symbol s, w)
 
   (TStrLit s : w) -> pure (String s, w)
@@ -209,6 +221,8 @@ sexp s = case s of
     maybe (pure (nil, rest)) (`list` rest) (closing c)
                     | otherwise -> do
                         lift $ throwError ParensOver
+  ( w : _ ) -> lift $ throwError SyntaxError
+
 
   where
 
@@ -241,6 +255,10 @@ sexp s = case s of
 
 
     list :: (MonadError SExpParseError m) => Char -> [TTok] -> SExpM m (MicroSexp, [TTok])
+
+    list c [] = do
+      lift $ throwError ParensUnder
+
     list c tokens = do
       modify $ over sexpBraces (c:)
 
@@ -251,7 +269,9 @@ sexp s = case s of
         isClosing :: Char -> Bool
         isClosing c = c `elem` ")}]"
 
-        go cl acc [] = pure (List mempty, mempty)
+        go cl acc [] = do
+          checkBraces
+          pure (List mempty, mempty)
 
         go cl acc (TPunct c : rest)
           | isClosing c && c == cl = do
