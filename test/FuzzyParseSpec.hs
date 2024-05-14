@@ -45,6 +45,7 @@ import Data.Text qualified as Text
 import Data.Foldable
 import Data.Traversable
 import Debug.Trace
+import Data.Coerce
 
 import Streaming.Prelude qualified as S
 
@@ -126,11 +127,14 @@ newtype SExpM m a = SExpM { fromSexpM :: RWST SExpEnv () SExpState m a }
                       )
 
 
+instance MonadError SExpParseError m => MonadError SExpParseError (SExpM m) where
+  throwError = lift . throwError
+  catchError w  = catchError (coerce $ fromSexpM w)
 
 tokenizeSexp :: Text -> [TTok]
 tokenizeSexp txt =  do
-  let spec = delims " \t" <> comment ";"
-                          <> punct "{}()[]\n\r"
+  let spec = delims " \r\t" <> comment ";"
+                          <> punct "{}()[]\n"
                           <> sq <> sqq
                           <> uw
   tokenize spec txt
@@ -220,8 +224,9 @@ sexp s = case s of
   (TPunct c : rest) | isBrace c  ->
     maybe (pure (nil, rest)) (`list` rest) (closing c)
                     | otherwise -> do
-                        lift $ throwError ParensOver
-  ( w : _ ) -> lift $ throwError SyntaxError
+                        throwError ParensOver
+
+  ( w : _ ) -> throwError SyntaxError
 
 
   where
@@ -257,7 +262,7 @@ sexp s = case s of
     list :: (MonadError SExpParseError m) => Char -> [TTok] -> SExpM m (MicroSexp, [TTok])
 
     list c [] = do
-      lift $ throwError ParensUnder
+      throwError ParensUnder
 
     list c tokens = do
       modify $ over sexpBraces (c:)
@@ -279,7 +284,7 @@ sexp s = case s of
               pure (List acc, rest)
 
           | isClosing c && c /= cl = do
-              lift $ throwError ParensUnmatched
+              throwError ParensUnmatched
 
         go cl acc rest = do
           (e,r) <- sexp rest
