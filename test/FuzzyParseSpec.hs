@@ -7,6 +7,7 @@
              , PatternSynonyms
              , ViewPatterns
              , MultiWayIf
+             , TemplateHaskell
 #-}
 
 module FuzzyParseSpec (spec) where
@@ -23,6 +24,7 @@ import Data.List qualified  as L
 import Data.Either
 import Control.Monad.Reader
 import Data.Map qualified as Map
+import Data.Map (Map)
 import Data.Typeable
 import Control.Exception
 import Control.Monad.Except
@@ -30,6 +32,7 @@ import Control.Monad.RWS
 import Data.Maybe
 import Data.Generics.Uniplate.Operations
 import Data.Data
+import Data.Char (isSpace)
 import Data.Generics.Uniplate.Data()
 import Data.Generics.Uniplate.Operations
 import GHC.Generics()
@@ -39,6 +42,11 @@ import GHC.Generics
 import Data.Generics.Uniplate.Operations
 import Lens.Micro.Platform
 import Data.Text qualified as Text
+import Data.Foldable
+import Data.Traversable
+import Debug.Trace
+
+import Streaming.Prelude qualified as S
 
 data TTok = TChar Char
           | TSChar Char
@@ -95,10 +103,13 @@ newtype SExpEnv =
   { sexpTranslate :: Bool
   }
 
-newtype SExpState =
+data SExpState =
   SExpState
-  { sexpLno :: Int
+  { _sexpLno    :: Int
+  , _sexpBraces :: [Char]
   }
+
+makeLenses 'SExpState
 
 defEnv :: SExpEnv
 defEnv = SExpEnv True
@@ -113,6 +124,8 @@ newtype SExpM m a = SExpM { fromSexpM :: RWST SExpEnv () SExpState m a }
                       , MonadTrans
                       )
 
+
+
 tokenizeSexp :: Text -> [TTok]
 tokenizeSexp txt =  do
   let spec = delims " \t" <> comment ";"
@@ -122,23 +135,80 @@ tokenizeSexp txt =  do
   tokenize spec txt
 
 runSexpM :: Monad m => SExpM m a -> m a
-runSexpM f = evalRWST (fromSexpM f) defEnv (SExpState 0) <&> fst
+runSexpM f = evalRWST (fromSexpM f) defEnv (SExpState 0 []) <&> fst
 
-parseSexp :: MonadError SExpParseError m => Text -> m MicroSexp
+
+isBrace :: Char -> Bool
+isBrace c = Map.member c braces
+
+closing :: Char -> Maybe Char
+closing c = Map.lookup c braces
+
+isClosing :: Char -> Bool
+isClosing = isJust . closing
+
+braces :: Map Char Char
+braces = Map.fromList[ ('{', '}')
+                     , ('(', ')')
+                     , ('[', ']')
+                     , ('<', '>')
+                     ]
+
+
+
+parseSexp :: (MonadIO m, MonadError SExpParseError m) => Text -> m MicroSexp
 parseSexp txt = do
-  runSexpM (sexp (tokenizeSexp txt)) <&> fst
+  (s, rest) <- runSexpM do
+                (s,rest) <- sexp (tokenizeSexp txt)
+                when (null rest) do
+                  braces <- gets (view sexpBraces)
+                  unless (null braces) $ lift $ throwError ParensUnder
+                pure (s,rest)
+
+  pure s
+
+parseTop :: MonadError SExpParseError m => Text -> m [MicroSexp]
+parseTop txt = do
+  let tokens = tokenizeSexp txt
+  r <- S.toList_ $ runSexpM do
+          flip fix (mempty,tokens) $ \next -> \case
+            (acc, []) -> do
+              traceM  "JOPA?"
+              emit acc
+
+            (acc, TPunct '\n' : rest) -> do
+              emit acc
+              traceM  "KITA?"
+              next (mempty,rest)
+            (acc, rest) -> do
+              (s, xs) <- sexp rest
+              traceM ( "PECHEN?" <> show (s,xs))
+              next (acc <> [s],xs)
+
+  pure $ unlist r
+
+  where
+
+    emit [] = pure ()
+    emit x  = lift $ S.yield (List x)
+
+    unlist = \case
+      [List xs] -> xs
+      other     -> other
 
 sexp :: MonadError SExpParseError m => [TTok] -> SExpM m (MicroSexp, [TTok])
-sexp s = case filtered s of
+sexp s = case s of
   [] -> pure (nil, mempty)
   (TText s : w) -> transformBiM trNum (Symbol s, w)
 
   (TStrLit s : w) -> pure (String s, w)
 
+  (TPunct c : rest) | isSpace c  -> sexp rest
+
   (TPunct c : rest) | isBrace c  ->
     maybe (pure (nil, rest)) (`list` rest) (closing c)
-
-                    | otherwise -> lift $ throwError ParensOver
+                    | otherwise -> do
+                        lift $ throwError ParensOver
 
   where
 
@@ -169,19 +239,13 @@ sexp s = case filtered s of
       TPunct '\n' -> False
       _           -> True
 
-    isBrace c = Map.member c braces
 
-    closing c = Map.lookup c braces
+    list :: (MonadError SExpParseError m) => Char -> [TTok] -> SExpM m (MicroSexp, [TTok])
+    list c tokens = do
+      modify $ over sexpBraces (c:)
 
-    isClosing = isJust . closing
+      go c mempty tokens
 
-    braces = Map.fromList[ ('{', '}')
-                         , ('(', ')')
-                         , ('[', ']')
-                         , ('<', '>')
-                         ]
-
-    list c = go c mempty
       where
 
         isClosing :: Char -> Bool
@@ -189,8 +253,13 @@ sexp s = case filtered s of
 
         go cl acc [] = pure (List mempty, mempty)
 
-        go cl acc (TPunct c : rest) | isClosing c && c == cl = pure (List acc, rest)
-                                    | isClosing c && c /= cl = lift $ throwError ParensUnmatched
+        go cl acc (TPunct c : rest)
+          | isClosing c && c == cl = do
+              modify $ over sexpBraces (drop 1)
+              pure (List acc, rest)
+
+          | isClosing c && c /= cl = do
+              lift $ throwError ParensUnmatched
 
         go cl acc rest = do
           (e,r) <- sexp rest
@@ -245,8 +314,8 @@ spec = do
       let expected = [ TPunct '('
                      , TKeyword "define"
                      , TText "add" , TPunct '(', TText "a" , TText "b", TPunct ')'
-                       , TPunct '(', TKeyword "+", TText "a",TText "b",TPunct ')',TPunct ')'
-                     ,TPunct '(',TKeyword "define"
+                     , TPunct '(', TKeyword "+", TText "a",TText "b",TPunct ')',TPunct ')'
+                     , TPunct '(',TKeyword "define"
                                   ,TText "r"
                                   ,TPunct '(',TText "add",TText "10",TText "20"
                                   ,TPunct ')',TPunct ')']
