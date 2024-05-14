@@ -254,12 +254,6 @@ sexp s = case s of
 
         x        -> pure x
 
-    filtered xs = flip filter xs $ \case
-      TPunct '\r' -> False
-      TPunct '\n' -> False
-      _           -> True
-
-
     list :: (MonadError SExpParseError m) => Char -> [TTok] -> SExpM m (MicroSexp, [TTok])
 
     list c [] = do
