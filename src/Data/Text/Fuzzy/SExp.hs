@@ -33,6 +33,13 @@ import Lens.Micro.Platform
 import Data.Text qualified as Text
 import Data.Coerce
 
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict  qualified as HM
+
+import Data.HashSet (HashSet)
+import Data.HashSet qualified as HS
+
+import UnliftIO
 
 import Streaming.Prelude qualified as S
 
@@ -131,33 +138,33 @@ runSexpM f = evalRWST (fromSexpM f) defEnv (SExpState 0 []) <&> fst
 
 
 isBrace :: Char -> Bool
-isBrace c = Map.member c braces
+isBrace c = HM.member c braces
 
 closing :: Char -> Maybe Char
-closing c = Map.lookup c braces
+closing c = HM.lookup c braces
 
 isClosing :: Char -> Bool
 isClosing = isJust . closing
 
-braces :: Map Char Char
-braces = Map.fromList[ ('{', '}')
+braces :: HashMap Char Char
+braces = HM.fromList[ ('{', '}')
                      , ('(', ')')
                      , ('[', ']')
                      , ('<', '>')
                      ]
 
 oBraces :: [Char]
-oBraces = Map.keys braces
+oBraces = HM.keys braces
 
 cBraces :: [Char]
-cBraces = Map.elems braces
+cBraces = HM.elems braces
 
 parseSexp :: (MonadIO m, MonadError SExpParseError m) => Text -> m MicroSexp
 parseSexp txt = do
-  (s, rest) <- runSexpM do
-                (s,rest) <- sexp (tokenizeSexp txt)
-                checkBraces
-                pure (s,rest)
+  (s, _) <- runSexpM do
+             (s,rest) <- sexp (tokenizeSexp txt)
+             checkBraces
+             pure (s,rest)
 
   pure s
 
@@ -240,6 +247,7 @@ sexp s = case s of
 
 
         x        -> pure x
+    {-# INLINE trNum #-}
 
     list :: (MonadError SExpParseError m) => Char -> [TTok] -> SExpM m (MicroSexp, [TTok])
 
@@ -254,7 +262,7 @@ sexp s = case s of
       where
 
         isClosing :: Char -> Bool
-        isClosing c = c `elem` ")}]"
+        isClosing c = c `elem` cBraces
 
         go cl acc [] = do
           checkBraces

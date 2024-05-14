@@ -90,6 +90,8 @@ library
                      , time
                      , microlens-platform
                      , uniplate
+                     , unliftio
+                     , unordered-containers
                      , timeit
 
   hs-source-dirs:      src
