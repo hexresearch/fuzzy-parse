@@ -19,6 +19,7 @@ import Data.Text.Fuzzy.Tokenize
 import Control.Monad.Reader
 import Data.Map qualified as Map
 import Data.Map (Map)
+import Data.List qualified as List
 import Data.Typeable
 import Control.Monad.Except
 import Control.Monad.RWS
@@ -127,8 +128,8 @@ instance MonadError SExpParseError m => MonadError SExpParseError (SExpM m) wher
 
 tokenizeSexp :: Text -> [TTok]
 tokenizeSexp txt =  do
-  let spec = delims " \r\t" <> comment ";"
-                          <> punct "'{}()[]\n"
+  let spec = delims " \r\t\n" <> comment ";"
+                          <> punct "'{}()[]"
                           <> sqq
                           <> uw
   tokenize spec txt
@@ -148,10 +149,10 @@ isClosing = isJust . closing
 
 braces :: HashMap Char Char
 braces = HM.fromList[ ('{', '}')
-                     , ('(', ')')
-                     , ('[', ']')
-                     , ('<', '>')
-                     ]
+                    , ('(', ')')
+                    , ('[', ']')
+                    , ('<', '>')
+                    ]
 
 oBraces :: [Char]
 oBraces = HM.keys braces
@@ -180,9 +181,9 @@ parseTop txt = do
           flip fix (mempty,tokens) $ \next -> \case
             (acc, []) -> do
               emit acc
-            (acc, TPunct '\n' : rest) -> do
-              emit acc
-              next (mempty,rest)
+            -- (acc, TPunct '\n' : rest) -> do
+            --   emit acc
+            --   next (mempty,rest)
             (acc, rest) -> do
               (s, xs) <- sexp rest
               next (acc <> [s],xs)
@@ -264,20 +265,20 @@ sexp s = case s of
         isClosing :: Char -> Bool
         isClosing c = c `elem` cBraces
 
-        go cl acc [] = do
+        go _ _ [] = do
           checkBraces
           pure (List mempty, mempty)
 
         go cl acc (TPunct c : rest)
           | isClosing c && c == cl = do
               modify $ over sexpBraces (drop 1)
-              pure (List acc, rest)
+              pure (List (reverse acc), rest)
 
           | isClosing c && c /= cl = do
               throwError ParensUnmatched
 
         go cl acc rest = do
           (e,r) <- sexp rest
-          go cl (acc <> [e]) r
+          go cl (e : acc) r
 
 
