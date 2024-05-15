@@ -95,7 +95,6 @@ data MicroSexp c =
   | Boolean_ c Bool
   deriving stock (Show,Data,Generic)
 
-
 pattern List :: ForMicroSexp c => [MicroSexp c] -> MicroSexp c
 pattern List xs <- List_ _ xs where
   List xs = List_ mempty xs
@@ -117,6 +116,24 @@ pattern Boolean b <- Boolean_ _ b where
   Boolean b = Boolean_ mempty b
 
 {-# COMPLETE List, Symbol, String, Number, Boolean #-}
+
+
+contextOf :: Lens (MicroSexp c) (MicroSexp c) c c
+contextOf = lens g s
+  where
+    s sexp c = case sexp of
+      List_    _  a -> List_ c a
+      Symbol_  _  a -> Symbol_ c a
+      String_  _  a -> String_ c a
+      Number_  _  a -> Number_ c a
+      Boolean_ _  a -> Boolean_ c a
+
+    g = \case
+      List_ c    _ -> c
+      Symbol_ c  _ -> c
+      String_ c  _ -> c
+      Number_ c  _ -> c
+      Boolean_ c _ -> c
 
 nil :: forall c . ForMicroSexp c => MicroSexp c
 nil = List []
@@ -243,6 +260,10 @@ sexp s = case s of
 
   where
 
+    setContext w = do
+      co <- getC0
+      pure $ over _2 (set contextOf co) w
+
     isBrace :: Char -> Bool
     isBrace c = HM.member c braces
 
@@ -320,14 +341,16 @@ sexp s = case s of
           (e,r) <- sexp rest
           go cl (e : acc) r
 
-raiseWith :: (MonadError a m, MonadState SExpState m)
-          => (C0 -> a) -> m b
+
+getC0 :: Monad m => SExpM m C0
+getC0 = do
+  lno <- gets (view sexpLno)
+  pure (C0 (Just lno))
+
+raiseWith :: (MonadError SExpParseError m)
+          => (C0 -> SExpParseError) -> SExpM m b
 
 raiseWith a = throwError =<< a <$> getC0
-  where
-    getC0 = do
-      lno <- gets (view sexpLno)
-      pure (C0 (Just lno))
 
 instance Pretty NumType where
    pretty = \case
