@@ -84,6 +84,7 @@ library
                      , attoparsec
                      , containers
                      , mtl
+                     , prettyprinter
                      , safe
                      , streaming
                      , text
@@ -96,6 +97,37 @@ library
 
   hs-source-dirs:      src
 
+
+executable fuzzy-sexp-parse
+
+    import:           shared-properties
+    default-language:   GHC2021
+
+    ghc-options:
+          -Wall
+          -fno-warn-type-defaults
+          -O2
+
+
+    main-is: FuzzySexpParse.hs
+
+    hs-source-dirs: misc
+
+    build-depends: base, fuzzy-parse
+                 , containers
+                 , hspec
+                 , hspec-discover
+                 , interpolatedstring-perl6
+                 , text
+                 , mtl
+                 , streaming
+                 , transformers
+                 , exceptions
+                 , uniplate
+                 , microlens-platform
+                 , safe
+                 , timeit
+                 , prettyprinter
 
 
 test-suite fuzzy-parse-test

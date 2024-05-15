@@ -6,7 +6,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Data.Text.Fuzzy.SExp where
 
@@ -17,9 +16,6 @@ import Data.Function
 import Data.Functor
 import Data.Text.Fuzzy.Tokenize
 import Control.Monad.Reader
-import Data.Map qualified as Map
-import Data.Map (Map)
-import Data.List qualified as List
 import Data.Typeable
 import Control.Monad.Except
 import Control.Monad.RWS
@@ -29,7 +25,6 @@ import Data.Generics.Uniplate.Data()
 import Safe
 import Data.Data
 import GHC.Generics
-import Data.Generics.Uniplate.Operations
 import Lens.Micro.Platform
 import Data.Text qualified as Text
 import Data.Coerce
@@ -37,10 +32,8 @@ import Data.Coerce
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict  qualified as HM
 
-import Data.HashSet (HashSet)
-import Data.HashSet qualified as HS
+import Prettyprinter hiding (braces,list)
 
-import UnliftIO
 
 import Streaming.Prelude qualified as S
 
@@ -64,12 +57,15 @@ instance IsToken TTok where
   mkEmpty = TEmpty
   mkIndent = TIndent
 
+{- HLINT "Use newtype "-}
+data C0 = C0 (Maybe Int)
+          deriving stock (Eq,Ord,Show,Data,Typeable,Generic)
 
 data SExpParseError =
-    ParensOver
-  | ParensUnder
-  | ParensUnmatched
-  | SyntaxError
+    ParensOver  C0
+  | ParensUnder C0
+  | ParensUnmatched C0
+  | SyntaxError C0
   deriving stock (Show,Typeable)
 
 
@@ -78,21 +74,57 @@ data NumType =
   | NumDouble  Double
   deriving stock (Eq,Ord,Show,Data,Generic)
 
-data MicroSexp =
-    List    [MicroSexp]
-  | Symbol  Text
-  | String  Text
-  | Number  NumType
-  | Boolean Bool
+class Monoid c => ForMicroSexp c where
+
+instance Monoid C0 where
+  mempty = C0 Nothing
+
+instance Semigroup C0 where
+  (<>) (C0 a) (C0 b) = C0 (b <|> a)
+
+instance ForMicroSexp C0 where
+
+
+instance ForMicroSexp () where
+
+data MicroSexp c =
+    List_    c [MicroSexp c]
+  | Symbol_  c Text
+  | String_  c Text
+  | Number_  c NumType
+  | Boolean_ c Bool
   deriving stock (Show,Data,Generic)
 
-nil :: MicroSexp
+
+pattern List :: ForMicroSexp c => [MicroSexp c] -> MicroSexp c
+pattern List xs <- List_ _ xs where
+  List xs = List_ mempty xs
+
+pattern Symbol :: ForMicroSexp c => Text -> MicroSexp c
+pattern Symbol xs <- Symbol_ _ xs where
+  Symbol xs = Symbol_ mempty xs
+
+pattern String :: ForMicroSexp c => Text -> MicroSexp c
+pattern String x <- String_ _ x where
+  String x = String_ mempty x
+
+pattern Number :: ForMicroSexp c => NumType -> MicroSexp c
+pattern Number n <- Number_ _ n where
+  Number n = Number_ mempty n
+
+pattern Boolean :: ForMicroSexp c => Bool -> MicroSexp c
+pattern Boolean b <- Boolean_ _ b where
+  Boolean b = Boolean_ mempty b
+
+{-# COMPLETE List, Symbol, String, Number, Boolean #-}
+
+nil :: forall c . ForMicroSexp c => MicroSexp c
 nil = List []
 
-symbol :: Text -> MicroSexp
+symbol :: forall c . ForMicroSexp c => Text -> MicroSexp c
 symbol = Symbol
 
-str :: Text -> MicroSexp
+str :: forall c . ForMicroSexp c => Text -> MicroSexp c
 str = String
 
 newtype SExpEnv =
@@ -128,39 +160,17 @@ instance MonadError SExpParseError m => MonadError SExpParseError (SExpM m) wher
 
 tokenizeSexp :: Text -> [TTok]
 tokenizeSexp txt =  do
-  let spec = delims " \r\t\n" <> comment ";"
-                          <> punct "'{}()[]"
-                          <> sqq
-                          <> uw
+  let spec = delims " \r\t" <> comment ";"
+                            <> punct "'{}()[]\n"
+                            <> sqq
+                            <> uw
   tokenize spec txt
 
 runSexpM :: Monad m => SExpM m a -> m a
 runSexpM f = evalRWST (fromSexpM f) defEnv (SExpState 0 []) <&> fst
 
 
-isBrace :: Char -> Bool
-isBrace c = HM.member c braces
-
-closing :: Char -> Maybe Char
-closing c = HM.lookup c braces
-
-isClosing :: Char -> Bool
-isClosing = isJust . closing
-
-braces :: HashMap Char Char
-braces = HM.fromList[ ('{', '}')
-                    , ('(', ')')
-                    , ('[', ']')
-                    , ('<', '>')
-                    ]
-
-oBraces :: [Char]
-oBraces = HM.keys braces
-
-cBraces :: [Char]
-cBraces = HM.elems braces
-
-parseSexp :: (MonadIO m, MonadError SExpParseError m) => Text -> m MicroSexp
+parseSexp :: (ForMicroSexp c, MonadError SExpParseError m) => Text -> m (MicroSexp c)
 parseSexp txt = do
   (s, _) <- runSexpM do
              (s,rest) <- sexp (tokenizeSexp txt)
@@ -172,18 +182,22 @@ parseSexp txt = do
 checkBraces :: (MonadError SExpParseError m) => SExpM m ()
 checkBraces = do
   braces <- gets (view sexpBraces)
-  unless (null braces) $ lift $ throwError ParensUnder
+  unless (null braces) $ raiseWith ParensUnder
 
-parseTop :: MonadError SExpParseError m => Text -> m [MicroSexp]
+succLno :: (MonadError SExpParseError m) => SExpM m ()
+succLno = modify (over sexpLno succ)
+
+parseTop :: (ForMicroSexp c, MonadError SExpParseError m) => Text -> m [MicroSexp c]
 parseTop txt = do
   let tokens = tokenizeSexp txt
   r <- S.toList_ $ runSexpM do
           flip fix (mempty,tokens) $ \next -> \case
             (acc, []) -> do
               emit acc
-            -- (acc, TPunct '\n' : rest) -> do
-            --   emit acc
-            --   next (mempty,rest)
+            (acc, TPunct '\n' : rest) -> do
+              succLno
+              emit acc
+              next (mempty,rest)
             (acc, rest) -> do
               (s, xs) <- sexp rest
               next (acc <> [s],xs)
@@ -203,29 +217,47 @@ parseTop txt = do
       [List xs] -> xs
       other     -> other
 
-sexp :: MonadError SExpParseError m => [TTok] -> SExpM m (MicroSexp, [TTok])
+sexp :: (ForMicroSexp c, MonadError SExpParseError m) => [TTok] -> SExpM m (MicroSexp c, [TTok])
 sexp s = case s of
   [] -> do
     checkBraces
     pure (nil, mempty)
 
-  (TText s : w) -> (,w) <$> trNum (Symbol s)
+  (TText l : w) -> (,w) <$> trNum (Symbol l)
 
-  (TStrLit s : w) -> pure (String s, w)
+  (TStrLit l : w) -> pure (String l, w)
 
   -- so far ignored
   (TPunct '\'' : rest) -> sexp rest
+
+  (TPunct '\n' : rest) -> succLno >> sexp rest
 
   (TPunct c : rest) | isSpace c  -> sexp rest
 
   (TPunct c : rest) | isBrace c  ->
     maybe (pure (nil, rest)) (`list` rest) (closing c)
                     | otherwise -> do
-                        throwError ParensOver
+                        raiseWith ParensOver
 
-  ( w : _ ) -> throwError SyntaxError
+  ( _ : _ ) -> raiseWith SyntaxError
 
   where
+
+    isBrace :: Char -> Bool
+    isBrace c = HM.member c braces
+
+    closing :: Char -> Maybe Char
+    closing c = HM.lookup c braces
+
+    braces :: HashMap Char Char
+    braces = HM.fromList[ ('{', '}')
+                        , ('(', ')')
+                        , ('[', ']')
+                        , ('<', '>')
+                        ]
+
+    cBraces :: [Char]
+    cBraces = HM.elems braces
 
     trNum tok = do
 
@@ -251,35 +283,65 @@ sexp s = case s of
         x        -> pure x
     {-# INLINE trNum #-}
 
-    list :: (MonadError SExpParseError m) => Char -> [TTok] -> SExpM m (MicroSexp, [TTok])
+    list :: (ForMicroSexp c, MonadError SExpParseError m)
+         => Char
+         -> [TTok]
+         -> SExpM m (MicroSexp c, [TTok])
 
-    list c [] = do
-      throwError ParensUnder
+    list _ [] = raiseWith ParensUnder
 
-    list c tokens = do
-      modify $ over sexpBraces (c:)
+    list cb tokens = do
+      modify $ over sexpBraces (cb:)
 
-      go c mempty tokens
+      go cb mempty tokens
 
       where
 
-        isClosing :: Char -> Bool
-        isClosing c = c `elem` cBraces
+        isClosingFor :: Char -> Bool
+        isClosingFor c = c `elem` cBraces
 
         go _ _ [] = do
           checkBraces
           pure (List mempty, mempty)
 
+        go cl acc (TPunct c : rest) | isSpace c = do
+          go cl acc rest
+
         go cl acc (TPunct c : rest)
-          | isClosing c && c == cl = do
+          | isClosingFor c && c == cl = do
               modify $ over sexpBraces (drop 1)
               pure (List (reverse acc), rest)
 
-          | isClosing c && c /= cl = do
-              throwError ParensUnmatched
+          | isClosingFor c && c /= cl = do
+              raiseWith ParensUnmatched
+              -- throwError =<< ParensUnmatched <$> undefined
 
         go cl acc rest = do
           (e,r) <- sexp rest
           go cl (e : acc) r
+
+raiseWith :: (MonadError a m, MonadState SExpState m)
+          => (C0 -> a) -> m b
+
+raiseWith a = throwError =<< a <$> getC0
+  where
+    getC0 = do
+      lno <- gets (view sexpLno)
+      pure (C0 (Just lno))
+
+instance Pretty NumType where
+   pretty = \case
+    NumInteger n -> pretty n
+    NumDouble  n -> pretty n
+
+instance ForMicroSexp c => Pretty (MicroSexp c) where
+
+  pretty = \case
+    List xs   -> parens (hsep (fmap pretty xs))
+    String s  -> dquotes (pretty s)
+    Symbol s  -> pretty s
+    Number n  -> pretty n
+    Boolean True -> pretty  "#t"
+    Boolean False -> pretty  "#f"
 
 
