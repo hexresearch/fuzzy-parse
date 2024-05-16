@@ -134,12 +134,6 @@ test-suite fuzzy-parse-test
     import:           shared-properties
     default-language:   GHC2021
 
-    ghc-options:
-          -Wall
-          -fno-warn-type-defaults
-          -O2
-          "-with-rtsopts=-N4 -A64m -AL256m -I0"
-
 
     type:       exitcode-stdio-1.0
     main-is:    Spec.hs
