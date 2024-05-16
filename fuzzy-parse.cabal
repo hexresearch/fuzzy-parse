@@ -87,6 +87,7 @@ library
                      , prettyprinter
                      , safe
                      , streaming
+                     , scientific
                      , text
                      , time
                      , microlens-platform

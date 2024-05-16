@@ -20,7 +20,7 @@ import Data.Typeable
 import Control.Monad.Except
 import Control.Monad.RWS
 import Data.Maybe
-import Data.Char (isSpace)
+import Data.Char (isSpace,digitToInt)
 import Data.Generics.Uniplate.Data()
 import Safe
 import Data.Data
@@ -28,6 +28,7 @@ import GHC.Generics
 import Lens.Micro.Platform
 import Data.Text qualified as Text
 import Data.Coerce
+import Data.Scientific
 
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict  qualified as HM
@@ -70,7 +71,7 @@ data SExpParseError =
 
 data NumType =
     NumInteger Integer
-  | NumDouble  Double
+  | NumDouble  Scientific
   deriving stock (Eq,Ord,Show,Data,Generic)
 
 class Monoid c => ForMicroSexp c where
@@ -289,7 +290,9 @@ sexp s = case s of
 
           let what = Number . NumInteger <$> readMay @Integer s0
                     <|>
-                    Number . NumDouble <$> readMay @Double s0
+                    Number . NumInteger <$> parseBinary s0
+                    <|>
+                    Number . NumDouble <$> readMay @Scientific s0
                     <|>
                     ( case  s of
                         "#t" -> Just (Boolean True)
@@ -354,7 +357,7 @@ raiseWith a = throwError =<< a <$> getC0
 instance Pretty NumType where
    pretty = \case
     NumInteger n -> pretty n
-    NumDouble  n -> pretty n
+    NumDouble  n -> viaShow n
 
 instance ForMicroSexp c => Pretty (MicroSexp c) where
 
@@ -366,4 +369,17 @@ instance ForMicroSexp c => Pretty (MicroSexp c) where
     Boolean True -> pretty  "#t"
     Boolean False -> pretty  "#f"
 
+isBinaryDigit :: Char -> Bool
+isBinaryDigit c = c == '0' || c == '1'
+
+parseBinary :: String -> Maybe Integer
+parseBinary str =
+  let -- Убираем префикс "0b" или "0B"
+      withoutPrefix = case str of
+                        '0':'b':rest -> Just rest
+                        '0':'B':rest -> Just rest
+                        _            -> Nothing
+  in if isJust withoutPrefix && all isBinaryDigit (fromJust withoutPrefix)
+     then Just $ foldl (\acc x -> acc * 2 + toInteger (digitToInt x)) 0 (fromJust withoutPrefix)
+     else Nothing
 
