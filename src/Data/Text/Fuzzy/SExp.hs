@@ -207,32 +207,24 @@ succLno = modify (over sexpLno succ)
 parseTop :: (ForMicroSexp c, MonadError SExpParseError m) => Text -> m [MicroSexp c]
 parseTop txt = do
   let tokens = tokenizeSexp txt
-  r <- S.toList_ $ runSexpM do
-          flip fix (mempty,tokens) $ \next -> \case
-            (acc, []) -> do
-              emit acc
-            (acc, TPunct '\n' : rest) -> do
-              succLno
-              emit acc
-              next (mempty,rest)
-            (acc, rest) -> do
-              (s, xs) <- sexp rest
-              next (acc <> [s],xs)
-
-  pure $ unlist (fmap unlist' r)
+  S.toList_ $ runSexpM do
+    flip fix (mempty,tokens) $ \next -> \case
+      (acc, []) -> do
+        emit acc
+      (acc, TPunct '\n' : rest) -> do
+        succLno
+        emit acc
+        next (mempty,rest)
+      (acc, rest) -> do
+        (s, xs) <- sexp rest
+        next (acc <> [s],xs)
 
   where
 
     emit [] = pure ()
-    emit x  = lift $ S.yield (List x)
-
-    unlist' = \case
-      List [List x] -> List x
-      x -> x
-
-    unlist = \case
-      [List xs] -> xs
-      other     -> other
+    emit wtf = case wtf of
+      [List xs] -> lift $ S.yield (List xs)
+      xs        -> lift $ S.yield (List xs)
 
 sexp :: (ForMicroSexp c, MonadError SExpParseError m) => [TTok] -> SExpM m (MicroSexp c, [TTok])
 sexp s = case s of
@@ -374,7 +366,7 @@ isBinaryDigit c = c == '0' || c == '1'
 
 parseBinary :: String -> Maybe Integer
 parseBinary str =
-  let -- Убираем префикс "0b" или "0B"
+  let
       withoutPrefix = case str of
                         '0':'b':rest -> Just rest
                         '0':'B':rest -> Just rest
