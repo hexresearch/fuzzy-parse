@@ -223,7 +223,7 @@ parseTop txt = do
 
     emit [] = pure ()
     emit wtf = case wtf of
-      [one] -> lift $ S.yield one
+      [one@List{}] -> lift $ S.yield one
       xs    -> lift $ S.yield (List xs)
 
 sexp :: (ForMicroSexp c, MonadError SExpParseError m) => [TTok] -> SExpM m (MicroSexp c, [TTok])
