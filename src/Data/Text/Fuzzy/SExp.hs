@@ -57,9 +57,8 @@ instance IsToken TTok where
   mkEmpty = TEmpty
   mkIndent = TIndent
 
-{- HLINT "Use newtype "-}
-data C0 = C0 (Maybe Int)
-          deriving stock (Eq,Ord,Show,Data,Typeable,Generic)
+newtype C0 = C0 (Maybe Int)
+             deriving stock (Eq,Ord,Show,Data,Typeable,Generic)
 
 data SExpParseError =
     ParensOver  C0
