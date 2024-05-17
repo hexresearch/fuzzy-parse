@@ -1,6 +1,14 @@
 {-# LANGUAGE   OverloadedStrings
              , QuasiQuotes
-             , ExtendedDefaultRules #-}
+             , ExtendedDefaultRules
+             , LambdaCase
+             , ImportQualifiedPost
+             , DerivingStrategies
+             , PatternSynonyms
+             , ViewPatterns
+             , MultiWayIf
+             , TemplateHaskell
+#-}
 
 module FuzzyParseSpec (spec) where
 
@@ -9,6 +17,9 @@ import Test.Hspec
 import Text.InterpolatedString.Perl6 (q)
 
 import Data.Text.Fuzzy.Tokenize
+import Data.Data
+import Data.Generics.Uniplate.Data()
+import GHC.Generics
 
 data TTok = TChar Char
           | TSChar Char
@@ -18,7 +29,7 @@ data TTok = TChar Char
           | TKeyword Text
           | TEmpty
           | TIndent Int
-          deriving(Eq,Ord,Show)
+          deriving stock (Eq,Ord,Show,Data,Generic)
 
 instance IsToken TTok where
   mkChar = TChar
@@ -28,7 +39,9 @@ instance IsToken TTok where
   mkStrLit = TStrLit
   mkKeyword = TKeyword
   mkEmpty = TEmpty
-  mkIndent n = TIndent n
+  mkIndent = TIndent
+
+
 
 spec :: Spec
 spec = do
@@ -79,8 +92,8 @@ spec = do
       let expected = [ TPunct '('
                      , TKeyword "define"
                      , TText "add" , TPunct '(', TText "a" , TText "b", TPunct ')'
-                       , TPunct '(', TKeyword "+", TText "a",TText "b",TPunct ')',TPunct ')'
-                     ,TPunct '(',TKeyword "define"
+                     , TPunct '(', TKeyword "+", TText "a",TText "b",TPunct ')',TPunct ')'
+                     , TPunct '(',TKeyword "define"
                                   ,TText "r"
                                   ,TPunct '(',TText "add",TText "10",TText "20"
                                   ,TPunct ')',TPunct ')']
