@@ -2,7 +2,7 @@
 description = "Haskell cabal package";
 
 inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?rev=442d407992384ed9c0e6d352de75b69079904e4e";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     haskell-flake-utils.url = "github:ivanovs-4/haskell-flake-utils";
 
     # another-simple-haskell-flake.url = "something";
