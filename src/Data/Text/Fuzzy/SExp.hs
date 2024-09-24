@@ -12,6 +12,7 @@ module Data.Text.Fuzzy.SExp where
 import Data.Text (Text)
 
 import Control.Applicative
+import Control.Monad
 import Data.Function
 import Data.Functor
 import Data.Text.Fuzzy.Tokenize
