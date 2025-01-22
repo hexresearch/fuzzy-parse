@@ -18,6 +18,7 @@ import Data.Functor
 import Data.Text.Fuzzy.Tokenize
 import Control.Monad.Reader
 import Data.Typeable
+import Control.Exception
 import Control.Monad.Except
 import Control.Monad.RWS
 import Data.Maybe
@@ -69,6 +70,7 @@ data SExpParseError =
   | SyntaxError C0
   deriving stock (Show,Typeable)
 
+instance Exception SExpParseError
 
 data NumType =
     NumInteger Integer
