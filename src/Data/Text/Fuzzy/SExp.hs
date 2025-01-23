@@ -20,6 +20,7 @@ import Control.Monad.Reader
 import Data.Typeable
 import Control.Exception
 import Control.Monad.Except
+import Control.Exception
 import Control.Monad.RWS
 import Data.Maybe
 import Data.Char (isSpace,digitToInt)
@@ -184,6 +185,7 @@ tokenizeSexp txt =  do
                             <> punct ",`'{}()[]\n"
                             <> sqq
                             <> uw
+                            <> esc
   tokenize spec txt
 
 runSexpM :: Monad m => SExpM m a -> m a
